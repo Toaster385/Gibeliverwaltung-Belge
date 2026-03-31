@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Belegverwaltung</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">🧾</span>
+        <h1>Belegverwaltung</h1>
+      </div>
+      <button class="btn btn-primary" id="btnNeuBeleg">+ Neuer Beleg</button>
+    </div>
+  </header>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-card">
+      <div class="stat-label">Belege gesamt</div>
+      <div class="stat-value" id="statAnzahl">–</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Gesamtbetrag</div>
+      <div class="stat-value" id="statGesamt">–</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Diesen Monat</div>
+      <div class="stat-value" id="statMonat">–</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Diesen Monat (Betrag)</div>
+      <div class="stat-value" id="statMonatBetrag">–</div>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <input type="text" id="filterSuche" placeholder="Geschäft oder Notiz suchen..." class="input-field">
+    </div>
+    <div class="filter-group">
+      <select id="filterKategorie" class="input-field">
+        <option value="alle">Alle Kategorien</option>
+        <option value="Lebensmittel">Lebensmittel</option>
+        <option value="Elektronik">Elektronik</option>
+        <option value="Kleidung">Kleidung</option>
+        <option value="Restaurant">Restaurant</option>
+        <option value="Drogerie">Drogerie</option>
+        <option value="Haushalt">Haushalt</option>
+        <option value="Freizeit">Freizeit</option>
+        <option value="Gesundheit">Gesundheit</option>
+        <option value="Transport">Transport</option>
+        <option value="Sonstiges">Sonstiges</option>
+      </select>
+    </div>
+    <div class="filter-group filter-dates">
+      <input type="date" id="filterVon" class="input-field" title="Von">
+      <span>–</span>
+      <input type="date" id="filterBis" class="input-field" title="Bis">
+    </div>
+    <button class="btn btn-secondary" id="btnFilterReset">Filter zurücksetzen</button>
+  </div>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div id="belegeGrid" class="belege-grid"></div>
+    <div id="emptyState" class="empty-state hidden">
+      <div class="empty-icon">🧾</div>
+      <h2>Keine Belege vorhanden</h2>
+      <p>Füge deinen ersten Beleg hinzu!</p>
+      <button class="btn btn-primary" onclick="document.getElementById('btnNeuBeleg').click()">+ Neuer Beleg</button>
+    </div>
+  </main>
+
+  <!-- Modal: Beleg erstellen / bearbeiten -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitel">Neuer Beleg</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <form id="formBeleg" enctype="multipart/form-data">
+        <input type="hidden" id="belegId">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="feldDatum">Datum *</label>
+            <input type="date" id="feldDatum" class="input-field" required>
+          </div>
+          <div class="form-group">
+            <label for="feldGeschaeft">Geschäft *</label>
+            <input type="text" id="feldGeschaeft" class="input-field" placeholder="z.B. REWE, Amazon..." required>
+          </div>
+          <div class="form-group">
+            <label for="feldBetrag">Betrag (€) *</label>
+            <input type="number" id="feldBetrag" class="input-field" placeholder="0.00" step="0.01" min="0" required>
+          </div>
+          <div class="form-group">
+            <label for="feldKategorie">Kategorie *</label>
+            <select id="feldKategorie" class="input-field" required>
+              <option value="">Bitte wählen...</option>
+              <option value="Lebensmittel">Lebensmittel</option>
+              <option value="Elektronik">Elektronik</option>
+              <option value="Kleidung">Kleidung</option>
+              <option value="Restaurant">Restaurant</option>
+              <option value="Drogerie">Drogerie</option>
+              <option value="Haushalt">Haushalt</option>
+              <option value="Freizeit">Freizeit</option>
+              <option value="Gesundheit">Gesundheit</option>
+              <option value="Transport">Transport</option>
+              <option value="Sonstiges">Sonstiges</option>
+            </select>
+          </div>
+          <div class="form-group form-full">
+            <label for="feldNotiz">Notiz</label>
+            <input type="text" id="feldNotiz" class="input-field" placeholder="Optionale Anmerkung...">
+          </div>
+          <div class="form-group form-full">
+            <label for="feldDatei">Beleg-Datei (Bild oder PDF)</label>
+            <div class="upload-area" id="uploadArea">
+              <input type="file" id="feldDatei" accept="image/*,.pdf" class="file-input">
+              <div class="upload-placeholder" id="uploadPlaceholder">
+                <span class="upload-icon">📎</span>
+                <span>Datei auswählen oder hierher ziehen</span>
+                <span class="upload-hint">JPG, PNG, PDF – max. 10 MB</span>
+              </div>
+              <div class="upload-preview hidden" id="uploadPreview">
+                <img id="previewImg" src="" alt="Vorschau" class="hidden">
+                <span id="previewPdf" class="pdf-preview hidden">📄</span>
+                <span id="previewName"></span>
+                <button type="button" class="btn-remove-file" id="btnRemoveFile">&times;</button>
+              </div>
+            </div>
+            <div id="existingFile" class="existing-file hidden">
+              <span id="existingFileName"></span>
+              <button type="button" class="btn-link" id="btnDeleteFile">Datei entfernen</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="btnAbbrechen">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" id="btnSpeichern">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Beleg-Vorschau -->
+  <div class="modal-overlay" id="previewOverlay">
+    <div class="modal modal-preview">
+      <div class="modal-header">
+        <h2 id="previewTitel">Beleg-Vorschau</h2>
+        <button class="modal-close" id="previewClose">&times;</button>
+      </div>
+      <div class="preview-content" id="previewContent"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
