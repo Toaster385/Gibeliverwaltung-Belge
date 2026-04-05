@@ -184,6 +184,6 @@ app.get('/api/statistiken', (req, res) => {
   res.json({ gesamt: total, dieserMonat: thisMonth, nachKategorie: byCategory });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Belegverwaltung laeuft auf http://localhost:${PORT}`);
 });
