@@ -10,20 +10,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
-// Ensure directories exist
-const uploadsDir = path.join(__dirname, 'uploads');
-const dbDir = path.join(__dirname, 'data');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir);
+// ===== Paths (use env vars for Railway persistent volumes) =====
+const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
+const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-// Database setup
-const db = new Database(path.join(dbDir, 'belege.db'));
+// ===== Database =====
+const db = new Database(path.join(dataDir, 'belege.db'));
 db.exec(`
   CREATE TABLE IF NOT EXISTS benutzer (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     benutzername TEXT UNIQUE NOT NULL,
-    passwort TEXT NOT NULL,
-    rolle TEXT NOT NULL DEFAULT 'benutzer',
+    passwort TEXT NOT NULL DEFAULT '',
+    rolle TEXT NOT NULL DEFAULT 'gibeli-gast',
+    geburtsdatum TEXT,
     erstellt_am TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -31,42 +32,62 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     benutzer_id INTEGER NOT NULL DEFAULT 1,
     datum TEXT NOT NULL,
-    geschaeft TEXT NOT NULL,
+    geschaeft TEXT NOT NULL DEFAULT '',
     betrag REAL NOT NULL,
-    kategorie TEXT NOT NULL,
+    kategorie TEXT NOT NULL DEFAULT 'Sonstiges',
     notiz TEXT,
     dateiname TEXT,
     dateipfad TEXT,
+    status TEXT NOT NULL DEFAULT 'ausstehend',
+    waehrung TEXT NOT NULL DEFAULT 'EUR',
     erstellt_am TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (benutzer_id) REFERENCES benutzer(id)
   )
 `);
 
-// Migrations
-try { db.exec(`ALTER TABLE belege ADD COLUMN benutzer_id INTEGER NOT NULL DEFAULT 1`); } catch (e) {}
-try { db.exec(`ALTER TABLE benutzer ADD COLUMN geburtsdatum TEXT`); } catch (e) {}
-try { db.exec(`ALTER TABLE belege ADD COLUMN status TEXT NOT NULL DEFAULT 'ausstehend'`); } catch (e) {}
-try { db.exec(`ALTER TABLE belege ADD COLUMN waehrung TEXT NOT NULL DEFAULT 'EUR'`); } catch (e) {}
+// ===== Migrations (safe, idempotent) =====
+const migrations = [
+  `ALTER TABLE belege ADD COLUMN benutzer_id INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE benutzer ADD COLUMN geburtsdatum TEXT`,
+  `ALTER TABLE belege ADD COLUMN status TEXT NOT NULL DEFAULT 'ausstehend'`,
+  `ALTER TABLE belege ADD COLUMN waehrung TEXT NOT NULL DEFAULT 'EUR'`,
+  `ALTER TABLE belege ADD COLUMN geschaeft TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE belege ADD COLUMN kategorie TEXT NOT NULL DEFAULT 'Sonstiges'`,
+];
+for (const m of migrations) { try { db.exec(m); } catch (e) {} }
 
-// Ensure admin "Lio" exists (only admin account)
+// Migrate old role names
+db.prepare(`UPDATE benutzer SET rolle = 'gibeli-gast' WHERE rolle NOT IN ('admin', 'gibeli-gast', 'verwaltung') AND instr(rolle, ',') = 0`).run();
+
+// Ensure admin "Lio" exists
 if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Lio'").get()) {
   const hash = bcrypt.hashSync('2202', 10);
-  db.prepare("INSERT OR REPLACE INTO benutzer (benutzername, passwort, rolle) VALUES ('Lio', ?, 'admin')").run(hash);
+  db.prepare("INSERT INTO benutzer (benutzername, passwort, rolle) VALUES ('Lio', ?, 'admin')").run(hash);
   console.log('Admin erstellt: Lio / 2202');
 }
 
-// Session middleware
+// ===== Helpers =====
+function getRollen(user) {
+  return (user.rolle || '').split(',').map(r => r.trim()).filter(Boolean);
+}
+
+function hatRolle(user, ...rollen) {
+  const userRollen = getRollen(user);
+  return rollen.some(r => userRollen.includes(r));
+}
+
+// ===== Session =====
 app.use(session({
   secret: process.env.SESSION_SECRET || 'belegverwaltung-geheim-2024',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Auth middleware
+// ===== Auth Middleware =====
 function requireLogin(req, res, next) {
   if (req.session && req.session.benutzer) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Nicht angemeldet' });
@@ -74,16 +95,21 @@ function requireLogin(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.session && req.session.benutzer && req.session.benutzer.rolle === 'admin') return next();
+  if (req.session?.benutzer && hatRolle(req.session.benutzer, 'admin')) return next();
   res.status(403).json({ error: 'Kein Admin-Zugriff' });
 }
 
-// Public static files (no login required)
+function requireVerwaltung(req, res, next) {
+  if (req.session?.benutzer && hatRolle(req.session.benutzer, 'admin', 'verwaltung')) return next();
+  res.status(403).json({ error: 'Kein Zugriff' });
+}
+
+// ===== Public static files =====
 app.get('/login.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/login.css', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.css')));
 app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
-// ===== AUTH ROUTES (public – must be before requireLogin middleware) =====
+// ===== AUTH ROUTES =====
 app.post('/api/login', (req, res) => {
   const { benutzername, passwort, geburtsdatum } = req.body;
   if (!benutzername) return res.status(400).json({ error: 'Benutzername erforderlich' });
@@ -91,7 +117,8 @@ app.post('/api/login', (req, res) => {
   const user = db.prepare('SELECT * FROM benutzer WHERE benutzername = ?').get(benutzername);
   if (!user) return res.status(401).json({ error: 'Falscher Benutzername oder Zugangsdaten' });
 
-  if (user.rolle === 'admin') {
+  const rollen = getRollen(user);
+  if (rollen.includes('admin')) {
     if (!passwort || !bcrypt.compareSync(passwort, user.passwort))
       return res.status(401).json({ error: 'Falsches Passwort' });
   } else {
@@ -112,39 +139,62 @@ app.get('/api/ich', requireLogin, (req, res) => {
   res.json(req.session.benutzer);
 });
 
-// Protected static files (after public API routes)
+// ===== Protected static files =====
 app.use(requireLogin, express.static(path.join(__dirname, 'public')));
 app.use('/uploads', requireLogin, express.static(uploadsDir));
 
-// ===== ADMIN ROUTES =====
+// ===== ADMIN: USER MANAGEMENT =====
 app.get('/api/admin/benutzer', requireAdmin, (req, res) => {
-  const users = db.prepare("SELECT id, benutzername, rolle, geburtsdatum, erstellt_am FROM benutzer ORDER BY erstellt_am DESC").all();
+  const users = db.prepare('SELECT id, benutzername, rolle, geburtsdatum, erstellt_am FROM benutzer ORDER BY erstellt_am DESC').all();
   res.json(users);
 });
 
 app.post('/api/admin/benutzer', requireAdmin, (req, res) => {
-  const { benutzername, geburtsdatum } = req.body;
+  const { benutzername, geburtsdatum, rollen } = req.body;
   if (!benutzername || !geburtsdatum)
     return res.status(400).json({ error: 'Benutzername und Geburtsdatum erforderlich' });
 
   const existing = db.prepare('SELECT id FROM benutzer WHERE benutzername = ?').get(benutzername);
   if (existing) return res.status(400).json({ error: 'Benutzername bereits vergeben' });
 
+  const rolleStr = Array.isArray(rollen) && rollen.length > 0
+    ? rollen.filter(r => ['admin','gibeli-gast','verwaltung'].includes(r)).join(',')
+    : 'gibeli-gast';
+
   const result = db.prepare(
-    "INSERT INTO benutzer (benutzername, passwort, rolle, geburtsdatum) VALUES (?, '', 'benutzer', ?)"
-  ).run(benutzername, geburtsdatum);
-  res.status(201).json({ id: result.lastInsertRowid, benutzername, rolle: 'benutzer' });
+    "INSERT INTO benutzer (benutzername, passwort, rolle, geburtsdatum) VALUES (?, '', ?, ?)"
+  ).run(benutzername, rolleStr, geburtsdatum);
+  res.status(201).json({ id: result.lastInsertRowid, benutzername, rolle: rolleStr });
+});
+
+app.put('/api/admin/benutzer/:id/rollen', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT * FROM benutzer WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+  if (user.id === req.session.benutzer.id) return res.status(400).json({ error: 'Eigene Rollen nicht änderbar' });
+
+  const { rollen } = req.body;
+  if (!Array.isArray(rollen) || rollen.length === 0)
+    return res.status(400).json({ error: 'Mindestens eine Rolle erforderlich' });
+
+  const valid = ['admin', 'gibeli-gast', 'verwaltung'];
+  const filtered = rollen.filter(r => valid.includes(r));
+  if (filtered.length === 0) return res.status(400).json({ error: 'Ungültige Rollen' });
+
+  db.prepare('UPDATE benutzer SET rolle = ? WHERE id = ?').run(filtered.join(','), req.params.id);
+  res.json({ success: true, rolle: filtered.join(',') });
 });
 
 app.delete('/api/admin/benutzer/:id', requireAdmin, (req, res) => {
   const user = db.prepare('SELECT * FROM benutzer WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
   if (user.id === req.session.benutzer.id) return res.status(400).json({ error: 'Eigenen Account nicht löschbar' });
+  db.prepare('DELETE FROM belege WHERE benutzer_id = ?').run(req.params.id);
   db.prepare('DELETE FROM benutzer WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
-app.get('/api/admin/belege', requireAdmin, (req, res) => {
+// ===== ADMIN: RECEIPTS =====
+app.get('/api/admin/belege', requireVerwaltung, (req, res) => {
   const rows = db.prepare(`
     SELECT b.*, u.benutzername FROM belege b
     JOIN benutzer u ON b.benutzer_id = u.id
@@ -153,7 +203,7 @@ app.get('/api/admin/belege', requireAdmin, (req, res) => {
   res.json(rows);
 });
 
-app.put('/api/admin/belege/:id/status', requireAdmin, (req, res) => {
+app.put('/api/admin/belege/:id/status', requireVerwaltung, (req, res) => {
   const { status } = req.body;
   if (status !== 'ausstehend' && status !== 'eingetragen')
     return res.status(400).json({ error: 'Ungültiger Status' });
@@ -163,7 +213,7 @@ app.put('/api/admin/belege/:id/status', requireAdmin, (req, res) => {
   res.json({ success: true, status });
 });
 
-app.get('/api/admin/statistiken', requireAdmin, (req, res) => {
+app.get('/api/admin/statistiken', requireVerwaltung, (req, res) => {
   const gesamt = db.prepare('SELECT COUNT(*) as anzahl, SUM(betrag) as summe FROM belege').get();
   const nachBenutzer = db.prepare(`
     SELECT u.benutzername, COUNT(b.id) as anzahl, SUM(b.betrag) as summe
@@ -186,25 +236,20 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp|pdf/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) return cb(null, true);
+    if (allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype))
+      return cb(null, true);
     cb(new Error('Nur Bilder und PDF erlaubt'));
   }
 });
 
 // ===== BELEGE ROUTES =====
 app.get('/api/belege', requireLogin, (req, res) => {
-  const { kategorie, von, bis, suche } = req.query;
-  const isAdmin = req.session.benutzer.rolle === 'admin';
+  const { von, bis, suche } = req.query;
+  const isPrivileged = hatRolle(req.session.benutzer, 'admin', 'verwaltung');
   let query = 'SELECT * FROM belege WHERE 1=1';
   const params = [];
 
-  if (!isAdmin) {
-    query += ' AND benutzer_id = ?';
-    params.push(req.session.benutzer.id);
-  }
-  if (kategorie && kategorie !== 'alle') { query += ' AND kategorie = ?'; params.push(kategorie); }
+  if (!isPrivileged) { query += ' AND benutzer_id = ?'; params.push(req.session.benutzer.id); }
   if (von) { query += ' AND datum >= ?'; params.push(von); }
   if (bis) { query += ' AND datum <= ?'; params.push(bis); }
   if (suche) { query += ' AND (geschaeft LIKE ? OR notiz LIKE ?)'; params.push(`%${suche}%`, `%${suche}%`); }
@@ -216,47 +261,47 @@ app.get('/api/belege', requireLogin, (req, res) => {
 app.get('/api/belege/:id', requireLogin, (req, res) => {
   const row = db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Beleg nicht gefunden' });
-  if (row.benutzer_id !== req.session.benutzer.id && req.session.benutzer.rolle !== 'admin')
+  if (row.benutzer_id !== req.session.benutzer.id && !hatRolle(req.session.benutzer, 'admin', 'verwaltung'))
     return res.status(403).json({ error: 'Kein Zugriff' });
   res.json(row);
 });
 
 app.post('/api/belege', requireLogin, upload.single('datei'), (req, res) => {
-  const { datum, geschaeft, betrag, kategorie, notiz } = req.body;
-  if (!datum || !geschaeft || betrag === undefined || !kategorie) {
-    if (req.file) fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: 'Pflichtfelder fehlen' });
-  }
-  const { waehrung } = req.body;
+  const { datum, geschaeft, betrag, notiz, waehrung } = req.body;
+  if (!datum || betrag === undefined || !req.file)
+    return res.status(400).json({ error: 'Datum, Betrag und Datei sind Pflichtfelder' });
+
   const result = db.prepare(`
-    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, kategorie, notiz, dateiname, dateipfad, waehrung)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(req.session.benutzer.id, datum, geschaeft, parseFloat(betrag), kategorie,
-    notiz || null, req.file ? req.file.originalname : null, req.file ? req.file.filename : null,
-    waehrung === 'CHF' ? 'CHF' : 'EUR');
+    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    req.session.benutzer.id, datum, geschaeft || '', parseFloat(betrag),
+    notiz || null, req.file.originalname, req.file.filename,
+    waehrung === 'CHF' ? 'CHF' : 'EUR'
+  );
   res.status(201).json(db.prepare('SELECT * FROM belege WHERE id = ?').get(result.lastInsertRowid));
 });
 
 app.put('/api/belege/:id', requireLogin, upload.single('datei'), (req, res) => {
   const existing = db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id);
   if (!existing) { if (req.file) fs.unlinkSync(req.file.path); return res.status(404).json({ error: 'Nicht gefunden' }); }
-  if (existing.benutzer_id !== req.session.benutzer.id && req.session.benutzer.rolle !== 'admin') {
+  if (existing.benutzer_id !== req.session.benutzer.id && !hatRolle(req.session.benutzer, 'admin', 'verwaltung')) {
     if (req.file) fs.unlinkSync(req.file.path); return res.status(403).json({ error: 'Kein Zugriff' });
   }
-  if (existing.status === 'eingetragen' && req.session.benutzer.rolle !== 'admin') {
+  if (existing.status === 'eingetragen' && !hatRolle(req.session.benutzer, 'admin', 'verwaltung')) {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: 'Eingetragene Belege können nicht mehr bearbeitet werden' });
   }
-  const { datum, geschaeft, betrag, kategorie, notiz, waehrung } = req.body;
+  const { datum, geschaeft, betrag, notiz, waehrung } = req.body;
   let dateipfad = existing.dateipfad, dateiname = existing.dateiname;
   if (req.file) {
     if (existing.dateipfad) { const old = path.join(uploadsDir, existing.dateipfad); if (fs.existsSync(old)) fs.unlinkSync(old); }
     dateipfad = req.file.filename; dateiname = req.file.originalname;
   }
-  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,kategorie=?,notiz=?,dateiname=?,dateipfad=?,waehrung=? WHERE id=?`)
-    .run(datum||existing.datum, geschaeft||existing.geschaeft,
+  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=? WHERE id=?`)
+    .run(datum||existing.datum, geschaeft!==undefined?geschaeft:existing.geschaeft,
       betrag!==undefined?parseFloat(betrag):existing.betrag,
-      kategorie||existing.kategorie, notiz!==undefined?notiz:existing.notiz,
+      notiz!==undefined?notiz:existing.notiz,
       dateiname, dateipfad, waehrung||existing.waehrung, req.params.id);
   res.json(db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id));
 });
@@ -264,7 +309,7 @@ app.put('/api/belege/:id', requireLogin, upload.single('datei'), (req, res) => {
 app.delete('/api/belege/:id', requireLogin, (req, res) => {
   const row = db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Nicht gefunden' });
-  if (row.benutzer_id !== req.session.benutzer.id && req.session.benutzer.rolle !== 'admin')
+  if (row.benutzer_id !== req.session.benutzer.id && !hatRolle(req.session.benutzer, 'admin', 'verwaltung'))
     return res.status(403).json({ error: 'Kein Zugriff' });
   if (row.dateipfad) { const p = path.join(uploadsDir, row.dateipfad); if (fs.existsSync(p)) fs.unlinkSync(p); }
   db.prepare('DELETE FROM belege WHERE id = ?').run(req.params.id);
@@ -273,15 +318,15 @@ app.delete('/api/belege/:id', requireLogin, (req, res) => {
 
 app.get('/api/statistiken', requireLogin, (req, res) => {
   const uid = req.session.benutzer.id;
-  const isAdmin = req.session.benutzer.rolle === 'admin';
-  const where = isAdmin ? '' : 'WHERE benutzer_id = ?';
-  const args = isAdmin ? [] : [uid];
+  const isPrivileged = hatRolle(req.session.benutzer, 'admin', 'verwaltung');
+  const where = isPrivileged ? '' : 'WHERE benutzer_id = ?';
+  const args = isPrivileged ? [] : [uid];
   const total = db.prepare(`SELECT COUNT(*) as anzahl, SUM(betrag) as gesamt FROM belege ${where}`).get(...args);
-  const byCategory = db.prepare(`SELECT kategorie, COUNT(*) as anzahl, SUM(betrag) as gesamt FROM belege ${where} GROUP BY kategorie ORDER BY gesamt DESC`).all(...args);
   const thisMonth = db.prepare(`SELECT COUNT(*) as anzahl, SUM(betrag) as gesamt FROM belege ${where ? where + ' AND' : 'WHERE'} strftime('%Y-%m', datum) = strftime('%Y-%m', 'now')`).get(...args);
-  res.json({ gesamt: total, dieserMonat: thisMonth, nachKategorie: byCategory });
+  res.json({ gesamt: total, dieserMonat: thisMonth });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Belegverwaltung laeuft auf http://localhost:${PORT}`);
+  console.log(`Belegverwaltung läuft auf http://localhost:${PORT}`);
+  console.log(`Daten: ${dataDir} | Uploads: ${uploadsDir}`);
 });
