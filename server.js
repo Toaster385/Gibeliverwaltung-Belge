@@ -46,12 +46,19 @@ try {
   db.exec(`ALTER TABLE belege ADD COLUMN benutzer_id INTEGER NOT NULL DEFAULT 1`);
 } catch (e) { /* column already exists */ }
 
-// Create default admin if not exists
+// Create default admins if none exist
 const adminExists = db.prepare("SELECT id FROM benutzer WHERE rolle = 'admin' LIMIT 1").get();
 if (!adminExists) {
-  const hash = bcrypt.hashSync('admin123', 10);
-  db.prepare("INSERT INTO benutzer (benutzername, passwort, rolle) VALUES (?, ?, 'admin')").run('admin', hash);
-  console.log('Standard-Admin erstellt: admin / admin123');
+  const defaultAdmins = [
+    { name: 'admin1', passwort: 'admin123' },
+    { name: 'admin2', passwort: 'admin123' },
+    { name: 'admin3', passwort: 'admin123' },
+  ];
+  for (const a of defaultAdmins) {
+    const hash = bcrypt.hashSync(a.passwort, 10);
+    db.prepare("INSERT INTO benutzer (benutzername, passwort, rolle) VALUES (?, ?, 'admin')").run(a.name, hash);
+  }
+  console.log('Standard-Admins erstellt: admin1, admin2, admin3 – Passwort jeweils: admin123');
 }
 
 // Session middleware
@@ -76,9 +83,11 @@ function requireAdmin(req, res, next) {
   res.status(403).json({ error: 'Kein Admin-Zugriff' });
 }
 
-// Static files (login page is public, rest requires login)
-app.use('/login.html', express.static(path.join(__dirname, 'public', 'login.html')));
-app.use('/login.css', express.static(path.join(__dirname, 'public', 'login.css')));
+// Public static files (no login required)
+const publicFiles = ['/login.html', '/login.css', '/admin.html'];
+publicFiles.forEach(f => {
+  app.use(f, express.static(path.join(__dirname, 'public', f)));
+});
 
 // Protected static files
 app.use(requireLogin, express.static(path.join(__dirname, 'public')));
