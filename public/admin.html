@@ -12,7 +12,7 @@
     .admin-header h1 { color: white; font-size: 22px; font-weight: 700; }
     .admin-header a { color: rgba(255,255,255,.7); font-size: 13px; text-decoration: none; }
     .admin-header a:hover { color: white; }
-    .card { background: white; border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+    .card { background: white; border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.2); overflow-x: auto; }
     .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #111827; display: flex; align-items: center; gap: 8px; }
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0; }
     .stat-box { background: #f9fafb; border-radius: 10px; padding: 16px; }
@@ -118,7 +118,7 @@
         <h2>🧾 Alle Belege</h2>
         <table>
           <thead>
-            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Kategorie</th><th>Status</th><th></th></tr>
+            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Kategorie</th><th>Status</th><th>Aktionen</th></tr>
           </thead>
           <tbody id="belegeTableBody"></tbody>
         </table>
@@ -266,11 +266,26 @@
             '<td><span class="badge ' + (istEingetragen ? 'badge-eingetragen' : 'badge-ausstehend') + '">' +
               (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') +
             '</span></td>' +
-            '<td><button class="btn-sm btn-status" onclick="toggleStatus(' + b.id + ',\'' + b.status + '\')">' +
-              (istEingetragen ? 'Als ausstehend' : 'Als eingetragen') +
-            '</button></td>' +
+            '<td style="white-space:nowrap;display:flex;gap:6px;">' +
+              '<button class="btn-sm btn-status" onclick="toggleStatus(' + b.id + ',\'' + b.status + '\')">' +
+                (istEingetragen ? 'Ausstehend' : 'Eingetragen') +
+              '</button>' +
+              '<button class="btn-sm btn-danger" onclick="loescheBeleg(' + b.id + ')">Löschen</button>' +
+            '</td>' +
           '</tr>';
         }).join('');
+      };
+      xhr.send();
+    }
+
+    function loescheBeleg(id) {
+      if (!confirm('Beleg wirklich löschen?')) return;
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', '/api/belege/' + id, true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) { ladeBelege(); ladeStats(); }
+        else { alert('Fehler beim Löschen'); }
       };
       xhr.send();
     }

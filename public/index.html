@@ -99,8 +99,15 @@
             <input type="text" id="feldGeschaeft" class="input-field" placeholder="z.B. REWE, Amazon..." required>
           </div>
           <div class="form-group">
-            <label for="feldBetrag">Betrag (€) *</label>
-            <input type="number" id="feldBetrag" class="input-field" placeholder="0.00" step="0.01" min="0" required>
+            <label>Betrag *</label>
+            <div class="betrag-row">
+              <div class="waehrung-toggle">
+                <button type="button" class="waehrung-btn active" data-waehrung="EUR">€ EUR</button>
+                <button type="button" class="waehrung-btn" data-waehrung="CHF">Fr CHF</button>
+              </div>
+              <input type="number" id="feldBetrag" class="input-field" placeholder="0.00" step="0.01" min="0">
+              <input type="hidden" id="feldWaehrung" value="EUR">
+            </div>
           </div>
           <div class="form-group">
             <label for="feldKategorie">Kategorie *</label>
@@ -123,7 +130,7 @@
             <input type="text" id="feldNotiz" class="input-field" placeholder="Optionale Anmerkung...">
           </div>
           <div class="form-group form-full">
-            <label for="feldDatei">Beleg-Datei (Bild oder PDF)</label>
+            <label for="feldDatei">Beleg-Datei (Bild oder PDF) *</label>
             <div class="upload-area" id="uploadArea">
               <input type="file" id="feldDatei" accept="image/*,.pdf" class="file-input">
               <div class="upload-placeholder" id="uploadPlaceholder">
@@ -144,6 +151,7 @@
             </div>
           </div>
         </div>
+        <div class="form-error hidden" id="formError"></div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" id="btnAbbrechen">Abbrechen</button>
           <button type="submit" class="btn btn-primary" id="btnSpeichern">Speichern</button>

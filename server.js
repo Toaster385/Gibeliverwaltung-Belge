@@ -46,6 +46,7 @@ db.exec(`
 try { db.exec(`ALTER TABLE belege ADD COLUMN benutzer_id INTEGER NOT NULL DEFAULT 1`); } catch (e) {}
 try { db.exec(`ALTER TABLE benutzer ADD COLUMN geburtsdatum TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE belege ADD COLUMN status TEXT NOT NULL DEFAULT 'ausstehend'`); } catch (e) {}
+try { db.exec(`ALTER TABLE belege ADD COLUMN waehrung TEXT NOT NULL DEFAULT 'EUR'`); } catch (e) {}
 
 // Ensure admin "Lio" exists (only admin account)
 if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Lio'").get()) {
@@ -226,11 +227,13 @@ app.post('/api/belege', requireLogin, upload.single('datei'), (req, res) => {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: 'Pflichtfelder fehlen' });
   }
+  const { waehrung } = req.body;
   const result = db.prepare(`
-    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, kategorie, notiz, dateiname, dateipfad)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, kategorie, notiz, dateiname, dateipfad, waehrung)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(req.session.benutzer.id, datum, geschaeft, parseFloat(betrag), kategorie,
-    notiz || null, req.file ? req.file.originalname : null, req.file ? req.file.filename : null);
+    notiz || null, req.file ? req.file.originalname : null, req.file ? req.file.filename : null,
+    waehrung === 'CHF' ? 'CHF' : 'EUR');
   res.status(201).json(db.prepare('SELECT * FROM belege WHERE id = ?').get(result.lastInsertRowid));
 });
 
@@ -240,17 +243,21 @@ app.put('/api/belege/:id', requireLogin, upload.single('datei'), (req, res) => {
   if (existing.benutzer_id !== req.session.benutzer.id && req.session.benutzer.rolle !== 'admin') {
     if (req.file) fs.unlinkSync(req.file.path); return res.status(403).json({ error: 'Kein Zugriff' });
   }
-  const { datum, geschaeft, betrag, kategorie, notiz } = req.body;
+  if (existing.status === 'eingetragen' && req.session.benutzer.rolle !== 'admin') {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(403).json({ error: 'Eingetragene Belege können nicht mehr bearbeitet werden' });
+  }
+  const { datum, geschaeft, betrag, kategorie, notiz, waehrung } = req.body;
   let dateipfad = existing.dateipfad, dateiname = existing.dateiname;
   if (req.file) {
     if (existing.dateipfad) { const old = path.join(uploadsDir, existing.dateipfad); if (fs.existsSync(old)) fs.unlinkSync(old); }
     dateipfad = req.file.filename; dateiname = req.file.originalname;
   }
-  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,kategorie=?,notiz=?,dateiname=?,dateipfad=? WHERE id=?`)
+  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,kategorie=?,notiz=?,dateiname=?,dateipfad=?,waehrung=? WHERE id=?`)
     .run(datum||existing.datum, geschaeft||existing.geschaeft,
       betrag!==undefined?parseFloat(betrag):existing.betrag,
       kategorie||existing.kategorie, notiz!==undefined?notiz:existing.notiz,
-      dateiname, dateipfad, req.params.id);
+      dateiname, dateipfad, waehrung||existing.waehrung, req.params.id);
   res.json(db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id));
 });
 

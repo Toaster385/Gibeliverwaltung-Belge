@@ -353,6 +353,50 @@ header {
 .status-eingetragen { background: #d1fae5; color: #065f46; }
 .status-ausstehend { background: #fef3c7; color: #92400e; }
 
+/* ===== Currency Toggle ===== */
+.betrag-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.waehrung-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  width: fit-content;
+}
+
+.waehrung-btn {
+  padding: 7px 16px;
+  border: none;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.waehrung-btn:first-child { border-right: 1px solid var(--border); }
+
+.waehrung-btn.active {
+  background: var(--primary);
+  color: white;
+}
+
+/* ===== Form Error ===== */
+.form-error {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
 /* ===== Empty State ===== */
 .empty-state {
   text-align: center;

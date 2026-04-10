@@ -44,6 +44,15 @@ function setupEventListeners() {
 
   document.getElementById('formBeleg').addEventListener('submit', speichereBeleg);
 
+  // Currency toggle
+  document.querySelectorAll('.waehrung-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.waehrung-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('feldWaehrung').value = btn.dataset.waehrung;
+    });
+  });
+
   // Filter
   filterSuche.addEventListener('input', () => {
     clearTimeout(filterTimeout);
@@ -134,15 +143,39 @@ async function ladeStatistiken() {
 async function speichereBeleg(e) {
   e.preventDefault();
   const id = document.getElementById('belegId').value;
-  const formData = new FormData();
+  const formError = document.getElementById('formError');
+  formError.classList.add('hidden');
 
-  formData.append('datum', document.getElementById('feldDatum').value);
+  // Validation
+  const datum = document.getElementById('feldDatum').value;
+  const betrag = document.getElementById('feldBetrag').value;
+  const dateiFile = document.getElementById('feldDatei').files[0];
+  const hatExistingFile = !document.getElementById('existingFile').classList.contains('hidden');
+
+  if (!datum) {
+    formError.textContent = 'Bitte das Datum angeben.';
+    formError.classList.remove('hidden');
+    return;
+  }
+  if (!betrag || parseFloat(betrag) <= 0) {
+    formError.textContent = 'Bitte einen gültigen Betrag angeben.';
+    formError.classList.remove('hidden');
+    return;
+  }
+  if (!dateiFile && !hatExistingFile) {
+    formError.textContent = 'Bitte einen Beleg (Bild oder PDF) hochladen.';
+    formError.classList.remove('hidden');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('datum', datum);
   formData.append('geschaeft', document.getElementById('feldGeschaeft').value);
-  formData.append('betrag', document.getElementById('feldBetrag').value);
+  formData.append('betrag', betrag);
   formData.append('kategorie', document.getElementById('feldKategorie').value);
   formData.append('notiz', document.getElementById('feldNotiz').value);
+  formData.append('waehrung', document.getElementById('feldWaehrung').value);
 
-  const dateiFile = document.getElementById('feldDatei').files[0];
   if (dateiFile) formData.append('datei', dateiFile);
   if (deleteFileFlag) formData.append('deleteFile', 'true');
 
@@ -243,25 +276,28 @@ function kartHTML(b) {
       </div>`;
   }
 
+  const istEingetragen = b.status === 'eingetragen';
+  const waehrung = b.waehrung || 'EUR';
+
   return `
     <div class="beleg-card">
       ${thumbHTML}
       <div class="card-body">
         <div class="card-top">
           <span class="card-shop">${escapeHtml(b.geschaeft)}</span>
-          <span class="card-amount">${formatBetrag(b.betrag)}</span>
+          <span class="card-amount">${formatBetrag(b.betrag, waehrung)}</span>
         </div>
         <div class="card-meta">
           <span class="card-date">${formatDatum(b.datum)}</span>
           <span class="badge cat-${b.kategorie}">${b.kategorie}</span>
-          <span class="badge status-${b.status || 'ausstehend'}">${b.status === 'eingetragen' ? '✓ Eingetragen' : '⏳ Ausstehend'}</span>
+          <span class="badge status-${b.status || 'ausstehend'}">${istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend'}</span>
         </div>
         ${b.notiz ? `<div class="card-note">${escapeHtml(b.notiz)}</div>` : ''}
       </div>
       <div class="card-actions">
-        <button class="btn-icon" data-action="edit" data-id="${b.id}">&#9998; Bearbeiten</button>
+        ${!istEingetragen ? `<button class="btn-icon" data-action="edit" data-id="${b.id}">&#9998; Bearbeiten</button>` : ''}
         ${hatDatei ? `<button class="btn-icon" data-action="preview" data-id="${b.id}">&#128065; Ansehen</button>` : ''}
-        <button class="btn-icon danger" data-action="delete" data-id="${b.id}">&#128465; Löschen</button>
+        ${!istEingetragen ? `<button class="btn-icon danger" data-action="delete" data-id="${b.id}">&#128465; Löschen</button>` : ''}
       </div>
     </div>`;
 }
@@ -286,6 +322,7 @@ function oeffneModal(id = null) {
     document.getElementById('feldBetrag').value = b.betrag;
     document.getElementById('feldKategorie').value = b.kategorie;
     document.getElementById('feldNotiz').value = b.notiz || '';
+    setWaehrung(b.waehrung || 'EUR');
 
     if (b.dateiname) {
       document.getElementById('existingFileName').textContent = b.dateiname;
@@ -294,8 +331,10 @@ function oeffneModal(id = null) {
   } else {
     document.getElementById('modalTitel').textContent = 'Neuer Beleg';
     document.getElementById('feldDatum').value = new Date().toISOString().slice(0, 10);
+    setWaehrung('EUR');
   }
 
+  document.getElementById('formError').classList.add('hidden');
   overlay.classList.add('active');
 }
 
@@ -408,8 +447,16 @@ function zeigeToast(msg, type = '') {
 }
 
 // ===== Helpers =====
-function formatBetrag(betrag) {
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(betrag);
+function formatBetrag(betrag, waehrung) {
+  const currency = waehrung === 'CHF' ? 'CHF' : 'EUR';
+  return new Intl.NumberFormat('de-CH', { style: 'currency', currency }).format(betrag);
+}
+
+function setWaehrung(w) {
+  document.getElementById('feldWaehrung').value = w;
+  document.querySelectorAll('.waehrung-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.waehrung === w);
+  });
 }
 
 function formatDatum(datum) {
