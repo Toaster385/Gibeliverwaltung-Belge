@@ -254,6 +254,7 @@ function kartHTML(b) {
         <div class="card-meta">
           <span class="card-date">${formatDatum(b.datum)}</span>
           <span class="badge cat-${b.kategorie}">${b.kategorie}</span>
+          <span class="badge status-${b.status || 'ausstehend'}">${b.status === 'eingetragen' ? '✓ Eingetragen' : '⏳ Ausstehend'}</span>
         </div>
         ${b.notiz ? `<div class="card-note">${escapeHtml(b.notiz)}</div>` : ''}
       </div>

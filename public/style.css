@@ -350,6 +350,9 @@ header {
 .cat-Transport { background: #f3f4f6; color: #374151; }
 .cat-Sonstiges { background: #f1f5f9; color: #475569; }
 
+.status-eingetragen { background: #d1fae5; color: #065f46; }
+.status-ausstehend { background: #fef3c7; color: #92400e; }
+
 /* ===== Empty State ===== */
 .empty-state {
   text-align: center;

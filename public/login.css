@@ -67,6 +67,10 @@ body {
   outline: none;
   transition: border-color .15s, box-shadow .15s;
   width: 100%;
+  height: 48px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: white;
 }
 
 .input-field:focus {

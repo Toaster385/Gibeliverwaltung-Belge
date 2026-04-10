@@ -45,6 +45,7 @@ db.exec(`
 // Migrations
 try { db.exec(`ALTER TABLE belege ADD COLUMN benutzer_id INTEGER NOT NULL DEFAULT 1`); } catch (e) {}
 try { db.exec(`ALTER TABLE benutzer ADD COLUMN geburtsdatum TEXT`); } catch (e) {}
+try { db.exec(`ALTER TABLE belege ADD COLUMN status TEXT NOT NULL DEFAULT 'ausstehend'`); } catch (e) {}
 
 // Ensure admin "Lio" exists (only admin account)
 if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Lio'").get()) {
@@ -149,6 +150,16 @@ app.get('/api/admin/belege', requireAdmin, (req, res) => {
     ORDER BY b.datum DESC
   `).all();
   res.json(rows);
+});
+
+app.put('/api/admin/belege/:id/status', requireAdmin, (req, res) => {
+  const { status } = req.body;
+  if (status !== 'ausstehend' && status !== 'eingetragen')
+    return res.status(400).json({ error: 'Ungültiger Status' });
+  const row = db.prepare('SELECT id FROM belege WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Beleg nicht gefunden' });
+  db.prepare('UPDATE belege SET status = ? WHERE id = ?').run(status, req.params.id);
+  res.json({ success: true, status });
 });
 
 app.get('/api/admin/statistiken', requireAdmin, (req, res) => {

@@ -25,6 +25,10 @@
     .badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
     .badge-admin { background: #ede9fe; color: #5b21b6; }
     .badge-user { background: #f3f4f6; color: #6b7280; }
+    .badge-eingetragen { background: #d1fae5; color: #065f46; }
+    .badge-ausstehend { background: #fef3c7; color: #92400e; }
+    .btn-status { background: #ede9fe; color: #5b21b6; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-status:hover { background: #ddd6fe; }
     .btn-sm { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn-danger { background: #fee2e2; color: #991b1b; }
     .btn-danger:hover { background: #fecaca; }
@@ -114,7 +118,7 @@
         <h2>🧾 Alle Belege</h2>
         <table>
           <thead>
-            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Kategorie</th></tr>
+            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Kategorie</th><th>Status</th><th></th></tr>
           </thead>
           <tbody id="belegeTableBody"></tbody>
         </table>
@@ -245,17 +249,42 @@
         </tr>`).join('');
     }
 
-    async function ladeBelege() {
-      const res = await fetch('/api/admin/belege');
-      const belege = await res.json();
-      document.getElementById('belegeTableBody').innerHTML = belege.map(b => `
-        <tr>
-          <td>${new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE')}</td>
-          <td>${esc(b.benutzername)}</td>
-          <td>${esc(b.geschaeft)}</td>
-          <td><strong>${fmt(b.betrag)}</strong></td>
-          <td>${esc(b.kategorie)}</td>
-        </tr>`).join('');
+    function ladeBelege() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/admin/belege', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        var belege = JSON.parse(xhr.responseText);
+        document.getElementById('belegeTableBody').innerHTML = belege.map(function(b) {
+          var istEingetragen = b.status === 'eingetragen';
+          return '<tr id="beleg-row-' + b.id + '">' +
+            '<td>' + new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE') + '</td>' +
+            '<td>' + esc(b.benutzername) + '</td>' +
+            '<td>' + esc(b.geschaeft) + '</td>' +
+            '<td><strong>' + fmt(b.betrag) + '</strong></td>' +
+            '<td>' + esc(b.kategorie) + '</td>' +
+            '<td><span class="badge ' + (istEingetragen ? 'badge-eingetragen' : 'badge-ausstehend') + '">' +
+              (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') +
+            '</span></td>' +
+            '<td><button class="btn-sm btn-status" onclick="toggleStatus(' + b.id + ',\'' + b.status + '\')">' +
+              (istEingetragen ? 'Als ausstehend' : 'Als eingetragen') +
+            '</button></td>' +
+          '</tr>';
+        }).join('');
+      };
+      xhr.send();
+    }
+
+    function toggleStatus(id, currentStatus) {
+      var neuerStatus = currentStatus === 'eingetragen' ? 'ausstehend' : 'eingetragen';
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', '/api/admin/belege/' + id + '/status', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) ladeBelege();
+      };
+      xhr.send(JSON.stringify({ status: neuerStatus }));
     }
 
     async function ladeStats() {
