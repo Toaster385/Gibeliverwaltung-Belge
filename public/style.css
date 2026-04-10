@@ -116,6 +116,20 @@ header {
   padding: 0;
 }
 
+/* ===== Kasse Banner ===== */
+.kasse-banner {
+  max-width: 1200px;
+  margin: 16px auto 0;
+  padding: 12px 24px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid #fecaca;
+}
+
 /* ===== Stats Bar ===== */
 .stats-bar {
   max-width: 1200px;
@@ -146,6 +160,28 @@ header {
   font-size: 24px;
   font-weight: 700;
   color: var(--primary);
+}
+
+.stat-card-wide { grid-column: span 1; }
+
+.stat-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.stat-card-top .stat-label { margin-bottom: 0; }
+
+.stat-kurs {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.waehrung-toggle-sm .waehrung-btn {
+  padding: 4px 10px;
+  font-size: 11px;
 }
 
 /* ===== Filter Bar ===== */

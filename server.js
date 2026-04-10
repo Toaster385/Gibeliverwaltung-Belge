@@ -27,7 +27,6 @@ db.exec(`
     geburtsdatum TEXT,
     erstellt_am TEXT NOT NULL DEFAULT (datetime('now'))
   );
-
   CREATE TABLE IF NOT EXISTS belege (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     benutzer_id INTEGER NOT NULL DEFAULT 1,
@@ -42,7 +41,18 @@ db.exec(`
     waehrung TEXT NOT NULL DEFAULT 'EUR',
     erstellt_am TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (benutzer_id) REFERENCES benutzer(id)
-  )
+  );
+  CREATE TABLE IF NOT EXISTS einstellungen (
+    schluessel TEXT PRIMARY KEY,
+    wert TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS perioden (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    von TEXT NOT NULL,
+    bis TEXT NOT NULL,
+    erstellt_am TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // ===== Migrations (safe, idempotent) =====
@@ -55,6 +65,12 @@ const migrations = [
   `ALTER TABLE belege ADD COLUMN kategorie TEXT NOT NULL DEFAULT 'Sonstiges'`,
 ];
 for (const m of migrations) { try { db.exec(m); } catch (e) {} }
+
+// Default settings
+const defaultSettings = { kasse_geschlossen: '0', aktive_periode: '0' };
+for (const [k, v] of Object.entries(defaultSettings)) {
+  db.prepare(`INSERT OR IGNORE INTO einstellungen (schluessel, wert) VALUES (?, ?)`).run(k, v);
+}
 
 // Migrate old role names
 db.prepare(`UPDATE benutzer SET rolle = 'gibeli-gast' WHERE rolle NOT IN ('admin', 'gibeli-gast', 'verwaltung') AND instr(rolle, ',') = 0`).run();
@@ -139,6 +155,32 @@ app.get('/api/ich', requireLogin, (req, res) => {
   res.json(req.session.benutzer);
 });
 
+// ===== PUBLIC: Settings & Exchange Rate =====
+app.get('/api/einstellungen', (req, res) => {
+  const kasse = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='kasse_geschlossen'`).get();
+  const periode = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='aktive_periode'`).get();
+  const aktivePeriode = periode?.wert !== '0'
+    ? db.prepare('SELECT * FROM perioden WHERE id = ?').get(parseInt(periode.wert))
+    : null;
+  res.json({ kasse_geschlossen: kasse?.wert === '1', aktive_periode: aktivePeriode || null });
+});
+
+app.get('/api/wechselkurs', async (req, res) => {
+  try {
+    const https = require('https');
+    const data = await new Promise((resolve, reject) => {
+      https.get('https://api.frankfurter.app/latest?from=EUR&to=CHF', r => {
+        let body = '';
+        r.on('data', d => body += d);
+        r.on('end', () => resolve(JSON.parse(body)));
+      }).on('error', reject);
+    });
+    res.json({ EUR_to_CHF: data.rates.CHF, CHF_to_EUR: +(1 / data.rates.CHF).toFixed(6) });
+  } catch (e) {
+    res.json({ EUR_to_CHF: 0.95, CHF_to_EUR: 1.053, fallback: true });
+  }
+});
+
 // ===== Protected static files =====
 app.use(requireLogin, express.static(path.join(__dirname, 'public')));
 app.use('/uploads', requireLogin, express.static(uploadsDir));
@@ -214,13 +256,65 @@ app.put('/api/admin/belege/:id/status', requireVerwaltung, (req, res) => {
 });
 
 app.get('/api/admin/statistiken', requireVerwaltung, (req, res) => {
-  const gesamt = db.prepare('SELECT COUNT(*) as anzahl, SUM(betrag) as summe FROM belege').get();
+  const gesamt = db.prepare(`
+    SELECT COUNT(*) as anzahl,
+           SUM(CASE WHEN waehrung='EUR' THEN betrag ELSE 0 END) as summe_eur,
+           SUM(CASE WHEN waehrung='CHF' THEN betrag ELSE 0 END) as summe_chf
+    FROM belege
+  `).get();
   const nachBenutzer = db.prepare(`
     SELECT u.benutzername, COUNT(b.id) as anzahl, SUM(b.betrag) as summe
     FROM benutzer u LEFT JOIN belege b ON b.benutzer_id = u.id
     GROUP BY u.id ORDER BY summe DESC
   `).all();
   res.json({ gesamt, nachBenutzer });
+});
+
+// ===== ADMIN: KASSE =====
+app.post('/api/admin/kasse', requireAdmin, (req, res) => {
+  const { geschlossen } = req.body;
+  db.prepare(`UPDATE einstellungen SET wert = ? WHERE schluessel = 'kasse_geschlossen'`).run(geschlossen ? '1' : '0');
+  res.json({ success: true, kasse_geschlossen: !!geschlossen });
+});
+
+// ===== ADMIN: PERIODEN =====
+app.get('/api/admin/perioden', requireAdmin, (req, res) => {
+  const perioden = db.prepare('SELECT * FROM perioden ORDER BY von DESC').all();
+  const aktive = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='aktive_periode'`).get();
+  res.json({ perioden, aktive_periode_id: parseInt(aktive?.wert || '0') });
+});
+
+app.post('/api/admin/perioden', requireAdmin, (req, res) => {
+  const { name, von, bis } = req.body;
+  if (!name || !von || !bis)
+    return res.status(400).json({ error: 'Name, Von und Bis sind erforderlich' });
+  if (von > bis)
+    return res.status(400).json({ error: 'Startdatum muss vor Enddatum liegen' });
+  const result = db.prepare('INSERT INTO perioden (name, von, bis) VALUES (?, ?, ?)').run(name, von, bis);
+  res.status(201).json(db.prepare('SELECT * FROM perioden WHERE id = ?').get(result.lastInsertRowid));
+});
+
+app.put('/api/admin/perioden/:id/aktivieren', requireAdmin, (req, res) => {
+  const periode = db.prepare('SELECT * FROM perioden WHERE id = ?').get(req.params.id);
+  if (!periode) return res.status(404).json({ error: 'Periode nicht gefunden' });
+  db.prepare(`UPDATE einstellungen SET wert = ? WHERE schluessel = 'aktive_periode'`).run(String(req.params.id));
+  res.json({ success: true, aktive_periode: periode });
+});
+
+app.delete('/api/admin/perioden/aktiv', requireAdmin, (req, res) => {
+  db.prepare(`UPDATE einstellungen SET wert = '0' WHERE schluessel = 'aktive_periode'`).run();
+  res.json({ success: true });
+});
+
+app.delete('/api/admin/perioden/:id', requireAdmin, (req, res) => {
+  const periode = db.prepare('SELECT * FROM perioden WHERE id = ?').get(req.params.id);
+  if (!periode) return res.status(404).json({ error: 'Periode nicht gefunden' });
+  const aktive = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='aktive_periode'`).get();
+  if (aktive?.wert === String(req.params.id)) {
+    db.prepare(`UPDATE einstellungen SET wert = '0' WHERE schluessel = 'aktive_periode'`).run();
+  }
+  db.prepare('DELETE FROM perioden WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
 });
 
 // ===== MULTER =====
@@ -267,6 +361,13 @@ app.get('/api/belege/:id', requireLogin, (req, res) => {
 });
 
 app.post('/api/belege', requireLogin, upload.single('datei'), (req, res) => {
+  if (!hatRolle(req.session.benutzer, 'admin', 'verwaltung')) {
+    const kasse = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='kasse_geschlossen'`).get();
+    if (kasse?.wert === '1') {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: 'Die Kasse ist geschlossen – keine Änderungen möglich' });
+    }
+  }
   const { datum, geschaeft, betrag, notiz, waehrung } = req.body;
   if (!datum || betrag === undefined || !req.file)
     return res.status(400).json({ error: 'Datum, Betrag und Datei sind Pflichtfelder' });
@@ -287,6 +388,13 @@ app.put('/api/belege/:id', requireLogin, upload.single('datei'), (req, res) => {
   if (!existing) { if (req.file) fs.unlinkSync(req.file.path); return res.status(404).json({ error: 'Nicht gefunden' }); }
   if (existing.benutzer_id !== req.session.benutzer.id && !hatRolle(req.session.benutzer, 'admin', 'verwaltung')) {
     if (req.file) fs.unlinkSync(req.file.path); return res.status(403).json({ error: 'Kein Zugriff' });
+  }
+  if (!hatRolle(req.session.benutzer, 'admin', 'verwaltung')) {
+    const kasse = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='kasse_geschlossen'`).get();
+    if (kasse?.wert === '1') {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: 'Die Kasse ist geschlossen – keine Änderungen möglich' });
+    }
   }
   if (existing.status === 'eingetragen' && !hatRolle(req.session.benutzer, 'admin', 'verwaltung')) {
     if (req.file) fs.unlinkSync(req.file.path);
@@ -311,6 +419,10 @@ app.delete('/api/belege/:id', requireLogin, (req, res) => {
   if (!row) return res.status(404).json({ error: 'Nicht gefunden' });
   if (row.benutzer_id !== req.session.benutzer.id && !hatRolle(req.session.benutzer, 'admin', 'verwaltung'))
     return res.status(403).json({ error: 'Kein Zugriff' });
+  if (!hatRolle(req.session.benutzer, 'admin', 'verwaltung')) {
+    const kasse = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='kasse_geschlossen'`).get();
+    if (kasse?.wert === '1') return res.status(403).json({ error: 'Die Kasse ist geschlossen – keine Änderungen möglich' });
+  }
   if (row.dateipfad) { const p = path.join(uploadsDir, row.dateipfad); if (fs.existsSync(p)) fs.unlinkSync(p); }
   db.prepare('DELETE FROM belege WHERE id = ?').run(req.params.id);
   res.json({ success: true });
@@ -321,8 +433,18 @@ app.get('/api/statistiken', requireLogin, (req, res) => {
   const isPrivileged = hatRolle(req.session.benutzer, 'admin', 'verwaltung');
   const where = isPrivileged ? '' : 'WHERE benutzer_id = ?';
   const args = isPrivileged ? [] : [uid];
-  const total = db.prepare(`SELECT COUNT(*) as anzahl, SUM(betrag) as gesamt FROM belege ${where}`).get(...args);
-  const thisMonth = db.prepare(`SELECT COUNT(*) as anzahl, SUM(betrag) as gesamt FROM belege ${where ? where + ' AND' : 'WHERE'} strftime('%Y-%m', datum) = strftime('%Y-%m', 'now')`).get(...args);
+  const total = db.prepare(`
+    SELECT COUNT(*) as anzahl,
+           SUM(CASE WHEN waehrung='EUR' THEN betrag ELSE 0 END) as gesamt_eur,
+           SUM(CASE WHEN waehrung='CHF' THEN betrag ELSE 0 END) as gesamt_chf
+    FROM belege ${where}
+  `).get(...args);
+  const thisMonth = db.prepare(`
+    SELECT COUNT(*) as anzahl,
+           SUM(CASE WHEN waehrung='EUR' THEN betrag ELSE 0 END) as gesamt_eur,
+           SUM(CASE WHEN waehrung='CHF' THEN betrag ELSE 0 END) as gesamt_chf
+    FROM belege ${where ? where + ' AND' : 'WHERE'} strftime('%Y-%m', datum) = strftime('%Y-%m', 'now')
+  `).get(...args);
   res.json({ gesamt: total, dieserMonat: thisMonth });
 });
 

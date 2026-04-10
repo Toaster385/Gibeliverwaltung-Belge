@@ -14,10 +14,10 @@
     .admin-header a:hover { color: white; }
     .card { background: white; border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.2); overflow-x: auto; }
     .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #111827; display: flex; align-items: center; gap: 8px; }
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 0; }
     .stat-box { background: #f9fafb; border-radius: 10px; padding: 16px; }
     .stat-box .label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
-    .stat-box .value { font-size: 22px; font-weight: 700; color: #4f46e5; }
+    .stat-box .value { font-size: 20px; font-weight: 700; color: #4f46e5; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th { text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #9ca3af; letter-spacing: .5px; border-bottom: 2px solid #f3f4f6; }
     td { padding: 10px; border-bottom: 1px solid #f9fafb; color: #374151; vertical-align: middle; }
@@ -27,6 +27,8 @@
     .badge-user { background: #f3f4f6; color: #6b7280; }
     .badge-eingetragen { background: #d1fae5; color: #065f46; }
     .badge-ausstehend { background: #fef3c7; color: #92400e; }
+    .badge-aktiv { background: #d1fae5; color: #065f46; }
+    .badge-inaktiv { background: #f3f4f6; color: #6b7280; }
     .btn-status { background: #ede9fe; color: #5b21b6; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .btn-status:hover { background: #ddd6fe; }
     .btn-rolle { padding: 3px 10px; border-radius: 6px; border: 1.5px solid #e5e7eb; background: #f9fafb; color: #6b7280; font-size: 11px; font-weight: 600; cursor: pointer; margin: 2px; }
@@ -34,25 +36,44 @@
     .btn-rolle:hover:not(:disabled):not(.active) { background: #ede9fe; border-color: #a5b4fc; color: #4f46e5; }
     .btn-rolle:disabled { opacity: .5; cursor: not-allowed; }
     .add-user-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 20px; }
+    .add-user-form .form-group { margin-bottom: 0; }
     .btn-sm { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn-danger { background: #fee2e2; color: #991b1b; }
     .btn-danger:hover { background: #fecaca; }
-    .add-user-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 20px; }
-    .add-user-form .form-group { margin-bottom: 0; }
     .btn-add { padding: 10px 18px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .btn-add:hover { background: #3730a3; }
+    .btn-open { background: #d1fae5; color: #065f46; padding: 10px 20px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-open:hover { background: #a7f3d0; }
+    .btn-close { background: #fee2e2; color: #991b1b; padding: 10px 20px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-close:hover { background: #fecaca; }
+    .btn-activate { background: #ede9fe; color: #5b21b6; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-activate:hover { background: #ddd6fe; }
+    .btn-deactivate { background: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-deactivate:hover { background: #fde68a; }
+    .kasse-status-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .kasse-info { font-size: 14px; color: #374151; }
+    .kasse-info strong { font-size: 16px; }
+    .kasse-hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .aktive-periode-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #1e40af; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .periode-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 16px; }
+    .periode-form .form-group { margin-bottom: 0; }
     .login-section { display: none; }
     .login-section.active { display: block; }
     .main-section { display: none; }
     .main-section.active { display: block; }
     .back-link { display: inline-block; margin-bottom: 16px; color: rgba(255,255,255,.7); text-decoration: none; font-size: 13px; }
     .back-link:hover { color: white; }
-    @media(max-width:600px) { .add-user-form { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: 1fr; } }
+    @media(max-width:600px) {
+      .add-user-form { grid-template-columns: 1fr; }
+      .periode-form { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .kasse-status-row { flex-direction: column; align-items: flex-start; }
+    }
   </style>
 </head>
 <body>
-  <!-- Login Section -->
   <div class="admin-wrapper">
+    <!-- Login Section -->
     <div id="loginSection" class="login-section active">
       <a href="/login.html" class="back-link">← Zurück zur Anmeldung</a>
       <div class="login-card">
@@ -91,8 +112,52 @@
         <h2>📊 Übersicht</h2>
         <div class="stats-grid">
           <div class="stat-box"><div class="label">Belege gesamt</div><div class="value" id="statBelege">–</div></div>
-          <div class="stat-box"><div class="label">Gesamtbetrag</div><div class="value" id="statBetrag">–</div></div>
+          <div class="stat-box"><div class="label">Gesamtbetrag EUR</div><div class="value" id="statBetragEUR">–</div></div>
+          <div class="stat-box"><div class="label">Gesamtbetrag CHF</div><div class="value" id="statBetragCHF">–</div></div>
         </div>
+      </div>
+
+      <!-- Kasse -->
+      <div class="card">
+        <h2>🔒 Kasse</h2>
+        <div class="kasse-status-row">
+          <div class="kasse-info">
+            <div>Status: <strong id="kasseStatusText">–</strong></div>
+            <div class="kasse-hint">Wenn die Kasse geschlossen ist, können Benutzer keine Belege hinzufügen oder bearbeiten.</div>
+          </div>
+          <button id="btnToggleKasse" class="btn-close">Laden...</button>
+        </div>
+      </div>
+
+      <!-- Perioden -->
+      <div class="card">
+        <h2>📅 Perioden</h2>
+        <div id="aktivePeriodeInfo" class="aktive-periode-box" style="display:none;">
+          <span id="aktivePeriodeText"></span>
+          <button class="btn-deactivate" onclick="deaktivierePeriode()">Deaktivieren</button>
+        </div>
+        <div class="periode-form">
+          <div class="form-group">
+            <label>Name (z.B. Jahr 2025)</label>
+            <input type="text" id="neuPeriodeName" class="input-field" placeholder="Periode 2025">
+          </div>
+          <div class="form-group">
+            <label>Von</label>
+            <input type="date" id="neuPeriodeVon" class="input-field">
+          </div>
+          <div class="form-group">
+            <label>Bis</label>
+            <input type="date" id="neuPeriodeBis" class="input-field">
+          </div>
+          <button class="btn-add" id="btnAddPeriode">+ Hinzufügen</button>
+        </div>
+        <div id="periodeError" class="error-msg hidden"></div>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Von</th><th>Bis</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="periodenTableBody"></tbody>
+        </table>
       </div>
 
       <!-- User Management -->
@@ -112,7 +177,6 @@
             <select id="neuRolle" class="input-field">
               <option value="gibeli-gast">Gibeli-Gast</option>
               <option value="verwaltung">Verwaltung</option>
-              <option value="admin">Admin</option>
             </select>
           </div>
           <button class="btn-add" id="btnAddUser">+ Hinzufügen</button>
@@ -131,7 +195,7 @@
         <h2>🧾 Alle Belege</h2>
         <table>
           <thead>
-            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Kategorie</th><th>Status</th><th>Aktionen</th></tr>
+            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Status</th><th>Aktionen</th></tr>
           </thead>
           <tbody id="belegeTableBody"></tbody>
         </table>
@@ -144,7 +208,9 @@
     fetch('/api/ich').then(function(r) {
       if (r.ok) return r.json();
     }).then(function(user) {
-      if (user && user.rolle === 'admin') showAdminPanel();
+      if (user && user.rolle && user.rolle.split(',').map(function(r){return r.trim();}).includes('admin')) {
+        showAdminPanel();
+      }
     }).catch(function() {});
 
     document.getElementById('btnAdminLogin').addEventListener('click', function() {
@@ -184,7 +250,8 @@
             err.classList.remove('hidden');
             return;
           }
-          if (data.rolle !== 'admin') {
+          var rollen = (data.rolle || '').split(',').map(function(r){return r.trim();});
+          if (!rollen.includes('admin')) {
             err.textContent = 'Kein Admin-Konto';
             err.classList.remove('hidden');
             return;
@@ -198,10 +265,15 @@
       xhr.send(JSON.stringify({ benutzername: benutzername, passwort: passwort }));
     }
 
-    document.getElementById('btnAdminLogout').addEventListener('click', async (e) => {
+    document.getElementById('btnAdminLogout').addEventListener('click', function(e) {
       e.preventDefault();
-      await fetch('/api/logout', { method: 'POST' });
-      window.location.href = '/login.html';
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/logout', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        window.location.href = '/login.html';
+      };
+      xhr.send();
     });
 
     document.getElementById('btnAddUser').addEventListener('click', function() {
@@ -231,8 +303,35 @@
       xhr.send(JSON.stringify({ benutzername: benutzername, geburtsdatum: geburtsdatum, rollen: [rolle] }));
     });
 
+    document.getElementById('btnAddPeriode').addEventListener('click', function() {
+      var err = document.getElementById('periodeError');
+      err.classList.add('hidden');
+      var name = document.getElementById('neuPeriodeName').value.trim();
+      var von = document.getElementById('neuPeriodeVon').value;
+      var bis = document.getElementById('neuPeriodeBis').value;
+      if (!name || !von || !bis) {
+        err.textContent = 'Bitte Name, Von und Bis angeben';
+        err.classList.remove('hidden');
+        return;
+      }
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/perioden', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (xhr.status !== 201) { err.textContent = data.error || 'Fehler'; err.classList.remove('hidden'); return; }
+          document.getElementById('neuPeriodeName').value = '';
+          document.getElementById('neuPeriodeVon').value = '';
+          document.getElementById('neuPeriodeBis').value = '';
+          ladePerioden();
+        } catch(e) { err.textContent = 'Fehler'; err.classList.remove('hidden'); }
+      };
+      xhr.send(JSON.stringify({ name: name, von: von, bis: bis }));
+    });
+
     function toggleRolle(userId, rolle, hatRolle) {
-      var btn = document.querySelector('[data-user="' + userId + '"][data-rolle="' + rolle + '"]');
       var aktuelleRollen = JSON.parse(document.getElementById('user-rollen-' + userId).dataset.rollen);
       var neueRollen;
       if (hatRolle) {
@@ -247,44 +346,104 @@
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
         if (xhr.status === 200) ladeBenutzer();
-        else { var d = JSON.parse(xhr.responseText); alert(d.error || 'Fehler'); }
+        else { try { var d = JSON.parse(xhr.responseText); alert(d.error || 'Fehler'); } catch(e) {} }
       };
       xhr.send(JSON.stringify({ rollen: neueRollen }));
     }
 
-    async function showAdminPanel() {
-      document.getElementById('loginSection').classList.remove('active');
-      document.getElementById('mainSection').classList.add('active');
-      await Promise.all([ladeBenutzer(), ladeBelege(), ladeStats()]);
+    function aktivierePeriode(id) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', '/api/admin/perioden/' + id + '/aktivieren', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) ladePerioden();
+      };
+      xhr.send();
     }
 
-    async function ladeBenutzer() {
-      const res = await fetch('/api/admin/benutzer');
-      const users = await res.json();
-      // Get receipt counts
-      const belegeRes = await fetch('/api/admin/statistiken');
-      const stats = await belegeRes.json();
-      const countMap = {};
-      stats.nachBenutzer.forEach(u => { countMap[u.benutzername] = u.anzahl || 0; });
+    function deaktivierePeriode() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', '/api/admin/perioden/aktiv', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) ladePerioden();
+      };
+      xhr.send();
+    }
 
-      var ROLLEN_LABELS = { 'admin': 'Admin', 'verwaltung': 'Verwaltung', 'gibeli-gast': 'Gibeli-Gast' };
-      document.getElementById('userTableBody').innerHTML = users.map(function(u) {
-        var userRollen = (u.rolle || '').split(',').map(function(r) { return r.trim(); });
-        var istAdmin = u.benutzername === 'Lio';
-        var rollenButtons = ['admin','verwaltung','gibeli-gast'].map(function(r) {
-          var hat = userRollen.includes(r);
-          return '<button class="btn-rolle ' + (hat ? 'active' : '') + '" ' +
-            (istAdmin ? 'disabled' : 'onclick="toggleRolle(' + u.id + ',\'' + r + '\',' + hat + ')"') +
-            ' data-user="' + u.id + '" data-rolle="' + r + '">' + ROLLEN_LABELS[r] + '</button>';
-        }).join('');
-        return '<tr>' +
-          '<td><strong>' + esc(u.benutzername) + '</strong></td>' +
-          '<td>' + (u.geburtsdatum ? new Date(u.geburtsdatum + 'T00:00:00').toLocaleDateString('de-DE') : '–') + '</td>' +
-          '<td><span id="user-rollen-' + u.id + '" data-rollen=\'' + JSON.stringify(userRollen) + '\'>' + rollenButtons + '</span></td>' +
-          '<td>' + (countMap[u.benutzername] || 0) + '</td>' +
-          '<td>' + (!istAdmin ? '<button class="btn-sm btn-danger" onclick="loescheBenutzer(' + u.id + ')">Löschen</button>' : '') + '</td>' +
-          '</tr>';
-      }).join('');
+    function loeschePeriode(id) {
+      if (!confirm('Periode wirklich löschen?')) return;
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', '/api/admin/perioden/' + id, true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) ladePerioden();
+        else alert('Fehler beim Löschen');
+      };
+      xhr.send();
+    }
+
+    function toggleKasse(aktuellerStatus) {
+      var btn = document.getElementById('btnToggleKasse');
+      btn.disabled = true;
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/kasse', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        btn.disabled = false;
+        if (xhr.status === 200) ladeKasse();
+        else alert('Fehler beim Ändern der Kasse');
+      };
+      xhr.send(JSON.stringify({ geschlossen: !aktuellerStatus }));
+    }
+
+    function showAdminPanel() {
+      document.getElementById('loginSection').classList.remove('active');
+      document.getElementById('mainSection').classList.add('active');
+      ladeBenutzer();
+      ladeBelege();
+      ladeStats();
+      ladeKasse();
+      ladePerioden();
+    }
+
+    function ladeBenutzer() {
+      var xhr1 = new XMLHttpRequest();
+      xhr1.open('GET', '/api/admin/benutzer', true);
+      xhr1.onreadystatechange = function() {
+        if (xhr1.readyState !== 4) return;
+        var users = JSON.parse(xhr1.responseText);
+        var xhr2 = new XMLHttpRequest();
+        xhr2.open('GET', '/api/admin/statistiken', true);
+        xhr2.onreadystatechange = function() {
+          if (xhr2.readyState !== 4) return;
+          var stats = JSON.parse(xhr2.responseText);
+          var countMap = {};
+          stats.nachBenutzer.forEach(function(u) { countMap[u.benutzername] = u.anzahl || 0; });
+          var ROLLEN_LABELS = { 'admin': 'Admin', 'verwaltung': 'Verwaltung', 'gibeli-gast': 'Gibeli-Gast' };
+          document.getElementById('userTableBody').innerHTML = users.map(function(u) {
+            var userRollen = (u.rolle || '').split(',').map(function(r) { return r.trim(); });
+            var istAdmin = u.benutzername === 'Lio';
+            var rollenButtons = ['admin','verwaltung','gibeli-gast'].map(function(r) {
+              var hat = userRollen.includes(r);
+              return '<button class="btn-rolle ' + (hat ? 'active' : '') + '" ' +
+                (istAdmin ? 'disabled' : 'onclick="toggleRolle(' + u.id + ',\'' + r + '\',' + hat + ')"') +
+                ' data-user="' + u.id + '" data-rolle="' + r + '">' + ROLLEN_LABELS[r] + '</button>';
+            }).join('');
+            return '<tr>' +
+              '<td><strong>' + esc(u.benutzername) + '</strong></td>' +
+              '<td>' + (u.geburtsdatum ? new Date(u.geburtsdatum + 'T00:00:00').toLocaleDateString('de-DE') : '–') + '</td>' +
+              '<td><span id="user-rollen-' + u.id + '" data-rollen=\'' + JSON.stringify(userRollen) + '\'>' + rollenButtons + '</span></td>' +
+              '<td>' + (countMap[u.benutzername] || 0) + '</td>' +
+              '<td>' + (!istAdmin ? '<button class="btn-sm btn-danger" onclick="loescheBenutzer(' + u.id + ')">Löschen</button>' : '') + '</td>' +
+              '</tr>';
+          }).join('');
+        };
+        xhr2.send();
+      };
+      xhr1.send();
     }
 
     function ladeBelege() {
@@ -295,12 +454,12 @@
         var belege = JSON.parse(xhr.responseText);
         document.getElementById('belegeTableBody').innerHTML = belege.map(function(b) {
           var istEingetragen = b.status === 'eingetragen';
+          var waehrung = b.waehrung || 'EUR';
           return '<tr id="beleg-row-' + b.id + '">' +
             '<td>' + new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE') + '</td>' +
             '<td>' + esc(b.benutzername) + '</td>' +
             '<td>' + esc(b.geschaeft) + '</td>' +
-            '<td><strong>' + fmt(b.betrag) + '</strong></td>' +
-            '<td>' + esc(b.kategorie) + '</td>' +
+            '<td><strong>' + fmt(b.betrag, waehrung) + '</strong></td>' +
             '<td><span class="badge ' + (istEingetragen ? 'badge-eingetragen' : 'badge-ausstehend') + '">' +
               (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') +
             '</span></td>' +
@@ -312,6 +471,73 @@
             '</td>' +
           '</tr>';
         }).join('');
+      };
+      xhr.send();
+    }
+
+    function ladeKasse() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/einstellungen', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        try {
+          var data = JSON.parse(xhr.responseText);
+          var geschlossen = data.kasse_geschlossen;
+          var statusEl = document.getElementById('kasseStatusText');
+          var btn = document.getElementById('btnToggleKasse');
+          if (geschlossen) {
+            statusEl.textContent = '🔒 Geschlossen';
+            statusEl.style.color = '#991b1b';
+            btn.textContent = 'Kasse öffnen';
+            btn.className = 'btn-open';
+          } else {
+            statusEl.textContent = '🟢 Geöffnet';
+            statusEl.style.color = '#065f46';
+            btn.textContent = 'Kasse schließen';
+            btn.className = 'btn-close';
+          }
+          btn.onclick = function() { toggleKasse(geschlossen); };
+        } catch(e) {}
+      };
+      xhr.send();
+    }
+
+    function ladePerioden() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/admin/perioden', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        try {
+          var data = JSON.parse(xhr.responseText);
+          var aktiveId = data.aktive_periode_id;
+          var infoBox = document.getElementById('aktivePeriodeInfo');
+          var infoText = document.getElementById('aktivePeriodeText');
+
+          if (aktiveId > 0) {
+            var aktive = data.perioden.find(function(p) { return p.id === aktiveId; });
+            if (aktive) {
+              infoText.textContent = '📅 Aktive Periode: ' + esc(aktive.name) + ' (' + fmtDatum(aktive.von) + ' – ' + fmtDatum(aktive.bis) + ')';
+              infoBox.style.display = 'flex';
+            }
+          } else {
+            infoBox.style.display = 'none';
+          }
+
+          document.getElementById('periodenTableBody').innerHTML = data.perioden.map(function(p) {
+            var istAktiv = p.id === aktiveId;
+            return '<tr>' +
+              '<td><strong>' + esc(p.name) + '</strong></td>' +
+              '<td>' + fmtDatum(p.von) + '</td>' +
+              '<td>' + fmtDatum(p.bis) + '</td>' +
+              '<td><span class="badge ' + (istAktiv ? 'badge-aktiv' : 'badge-inaktiv') + '">' + (istAktiv ? '✓ Aktiv' : 'Inaktiv') + '</span></td>' +
+              '<td style="white-space:nowrap;display:flex;gap:6px;">' +
+                (!istAktiv ? '<button class="btn-activate" onclick="aktivierePeriode(' + p.id + ')">Aktivieren</button>' :
+                  '<button class="btn-deactivate" onclick="deaktivierePeriode()">Deaktivieren</button>') +
+                '<button class="btn-sm btn-danger" onclick="loeschePeriode(' + p.id + ')">Löschen</button>' +
+              '</td>' +
+            '</tr>';
+          }).join('') || '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;">Noch keine Perioden angelegt</td></tr>';
+        } catch(e) {}
       };
       xhr.send();
     }
@@ -340,22 +566,43 @@
       xhr.send(JSON.stringify({ status: neuerStatus }));
     }
 
-    async function ladeStats() {
-      const res = await fetch('/api/admin/statistiken');
-      const data = await res.json();
-      document.getElementById('statBelege').textContent = data.gesamt.anzahl;
-      document.getElementById('statBetrag').textContent = fmt(data.gesamt.summe || 0);
+    function ladeStats() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/admin/statistiken', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        try {
+          var data = JSON.parse(xhr.responseText);
+          document.getElementById('statBelege').textContent = data.gesamt.anzahl || 0;
+          document.getElementById('statBetragEUR').textContent = fmtEUR(data.gesamt.summe_eur || 0);
+          document.getElementById('statBetragCHF').textContent = fmtCHF(data.gesamt.summe_chf || 0);
+        } catch(e) {}
+      };
+      xhr.send();
     }
 
-    async function loescheBenutzer(id) {
+    function loescheBenutzer(id) {
       if (!confirm('Benutzer wirklich löschen?')) return;
-      const res = await fetch(`/api/admin/benutzer/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok) { alert(data.error); return; }
-      ladeBenutzer();
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', '/api/admin/benutzer/' + id, true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (xhr.status !== 200) { alert(data.error); return; }
+          ladeBenutzer();
+        } catch(e) {}
+      };
+      xhr.send();
     }
 
-    function fmt(n) { return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n); }
+    function fmt(n, w) {
+      var c = w === 'CHF' ? 'CHF' : 'EUR';
+      return new Intl.NumberFormat('de-CH',{style:'currency',currency:c}).format(n || 0);
+    }
+    function fmtEUR(n) { return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n || 0); }
+    function fmtCHF(n) { return new Intl.NumberFormat('de-CH',{style:'currency',currency:'CHF'}).format(n || 0); }
+    function fmtDatum(d) { return d ? new Date(d + 'T00:00:00').toLocaleDateString('de-DE') : '–'; }
     function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   </script>
 </body>

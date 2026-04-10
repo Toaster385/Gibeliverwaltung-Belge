@@ -2,6 +2,10 @@
 let belege = [];
 let filterTimeout = null;
 let deleteFileFlag = false;
+let wechselkurs = { EUR_to_CHF: 0.95, CHF_to_EUR: 1.053 };
+let statsData = null;
+let kasseGeschlossen = false;
+let statsWaehrung = 'EUR';
 
 const filterSuche = document.getElementById('filterSuche');
 const filterKategorie = document.getElementById('filterKategorie');
@@ -9,52 +13,120 @@ const filterVon = document.getElementById('filterVon');
 const filterBis = document.getElementById('filterBis');
 
 // ===== Init =====
-document.addEventListener('DOMContentLoaded', async () => {
-  // Check login
-  try {
-    const res = await fetch('/api/ich');
-    if (!res.ok) { window.location.href = '/login.html'; return; }
-    const user = await res.json();
-    document.getElementById('headerUser').textContent = '👤 ' + user.benutzername;
-  } catch (e) {
-    window.location.href = '/login.html';
-    return;
-  }
-  ladeBelege();
-  ladeStatistiken();
-  setupEventListeners();
+document.addEventListener('DOMContentLoaded', function() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/ich', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (xhr.status !== 200) { window.location.href = '/login.html'; return; }
+    try {
+      var user = JSON.parse(xhr.responseText);
+      document.getElementById('headerUser').textContent = '👤 ' + user.benutzername;
+    } catch(e) { window.location.href = '/login.html'; return; }
+    ladeEinstellungen();
+    ladeWechselkurs();
+    ladeBelege();
+    ladeStatistiken();
+    setupEventListeners();
+  };
+  xhr.send();
 });
+
+function ladeEinstellungen() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/einstellungen', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var data = JSON.parse(xhr.responseText);
+      kasseGeschlossen = data.kasse_geschlossen;
+      aktualisiereKasseBanner();
+    } catch(e) {}
+  };
+  xhr.send();
+}
+
+function ladeWechselkurs() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/wechselkurs', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var data = JSON.parse(xhr.responseText);
+      wechselkurs = data;
+      if (statsData) aktualisiereStatistikAnzeige();
+    } catch(e) {}
+  };
+  xhr.send();
+}
+
+function aktualisiereKasseBanner() {
+  var banner = document.getElementById('kasseBanner');
+  var btnNeu = document.getElementById('btnNeuBeleg');
+  if (kasseGeschlossen) {
+    banner.classList.remove('hidden');
+    btnNeu.disabled = true;
+    btnNeu.style.opacity = '0.5';
+    btnNeu.style.cursor = 'not-allowed';
+  } else {
+    banner.classList.add('hidden');
+    btnNeu.disabled = false;
+    btnNeu.style.opacity = '';
+    btnNeu.style.cursor = '';
+  }
+}
 
 // ===== Event Listeners =====
 function setupEventListeners() {
-  document.getElementById('btnNeuBeleg').addEventListener('click', () => oeffneModal());
-  document.getElementById('btnLogout').addEventListener('click', async () => {
-    await fetch('/api/logout', { method: 'POST' });
-    window.location.href = '/login.html';
+  document.getElementById('btnNeuBeleg').addEventListener('click', function() {
+    if (kasseGeschlossen) return;
+    oeffneModal();
+  });
+  document.getElementById('btnLogout').addEventListener('click', function() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/logout', true);
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      window.location.href = '/login.html';
+    };
+    xhr.send();
   });
   document.getElementById('modalClose').addEventListener('click', schliesseModal);
   document.getElementById('btnAbbrechen').addEventListener('click', schliesseModal);
-  document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  document.getElementById('modalOverlay').addEventListener('click', function(e) {
     if (e.target === document.getElementById('modalOverlay')) schliesseModal();
   });
   document.getElementById('previewClose').addEventListener('click', schliessePreview);
-  document.getElementById('previewOverlay').addEventListener('click', (e) => {
+  document.getElementById('previewOverlay').addEventListener('click', function(e) {
     if (e.target === document.getElementById('previewOverlay')) schliessePreview();
   });
 
-  document.getElementById('formBeleg').addEventListener('submit', speichereBeleg);
+  document.getElementById('btnSpeichern').addEventListener('click', speichereBeleg);
 
-  // Currency toggle
-  document.querySelectorAll('.waehrung-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.waehrung-btn').forEach(b => b.classList.remove('active'));
+  // Form currency toggle (only inside form)
+  document.querySelectorAll('#formBeleg .waehrung-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#formBeleg .waehrung-btn').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       document.getElementById('feldWaehrung').value = btn.dataset.waehrung;
     });
   });
 
+  // Stats currency toggle
+  var statsToggle = document.getElementById('statsWaehrungToggle');
+  if (statsToggle) {
+    statsToggle.querySelectorAll('.waehrung-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        statsToggle.querySelectorAll('.waehrung-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        statsWaehrung = btn.dataset.waehrung;
+        aktualisiereStatistikAnzeige();
+      });
+    });
+  }
+
   // Filter
-  filterSuche.addEventListener('input', () => {
+  filterSuche.addEventListener('input', function() {
     clearTimeout(filterTimeout);
     filterTimeout = setTimeout(ladeBelege, 300);
   });
@@ -64,15 +136,15 @@ function setupEventListeners() {
   document.getElementById('btnFilterReset').addEventListener('click', resetFilter);
 
   // File Upload
-  const uploadArea = document.getElementById('uploadArea');
-  const feldDatei = document.getElementById('feldDatei');
+  var uploadArea = document.getElementById('uploadArea');
+  var feldDatei = document.getElementById('feldDatei');
 
-  uploadArea.addEventListener('dragover', (e) => {
+  uploadArea.addEventListener('dragover', function(e) {
     e.preventDefault();
     uploadArea.classList.add('dragover');
   });
-  uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
-  uploadArea.addEventListener('drop', (e) => {
+  uploadArea.addEventListener('dragleave', function() { uploadArea.classList.remove('dragover'); });
+  uploadArea.addEventListener('drop', function(e) {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
     if (e.dataTransfer.files.length > 0) {
@@ -81,23 +153,22 @@ function setupEventListeners() {
     }
   });
 
-  feldDatei.addEventListener('change', (e) => {
+  feldDatei.addEventListener('change', function(e) {
     if (e.target.files.length > 0) zeigeVorschau(e.target.files[0]);
   });
 
-  document.getElementById('btnRemoveFile').addEventListener('click', (e) => {
+  document.getElementById('btnRemoveFile').addEventListener('click', function(e) {
     e.stopPropagation();
     e.preventDefault();
     loescheDateiVorschau();
   });
 
-  document.getElementById('btnDeleteFile').addEventListener('click', () => {
+  document.getElementById('btnDeleteFile').addEventListener('click', function() {
     deleteFileFlag = true;
     document.getElementById('existingFile').classList.add('hidden');
   });
 
-  // Keyboard
-  document.addEventListener('keydown', (e) => {
+  document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       schliesseModal();
       schliessePreview();
@@ -106,51 +177,86 @@ function setupEventListeners() {
 }
 
 // ===== API Calls =====
-async function ladeBelege() {
-  const params = new URLSearchParams();
-  const suche = filterSuche.value.trim();
-  const kat = filterKategorie.value;
-  const von = filterVon.value;
-  const bis = filterBis.value;
+function ladeBelege() {
+  var params = new URLSearchParams();
+  var suche = filterSuche.value.trim();
+  var kat = filterKategorie.value;
+  var von = filterVon.value;
+  var bis = filterBis.value;
 
   if (suche) params.append('suche', suche);
   if (kat && kat !== 'alle') params.append('kategorie', kat);
   if (von) params.append('von', von);
   if (bis) params.append('bis', bis);
 
-  try {
-    const res = await fetch('/api/belege?' + params.toString());
-    belege = await res.json();
-    rendereGrid();
-  } catch (err) {
-    zeigeToast('Fehler beim Laden der Belege', 'error');
-  }
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/belege?' + params.toString(), true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      belege = JSON.parse(xhr.responseText);
+      rendereGrid();
+    } catch(e) {
+      zeigeToast('Fehler beim Laden der Belege', 'error');
+    }
+  };
+  xhr.send();
 }
 
-async function ladeStatistiken() {
-  try {
-    const res = await fetch('/api/statistiken');
-    const stats = await res.json();
-    document.getElementById('statAnzahl').textContent = stats.gesamt.anzahl;
-    document.getElementById('statGesamt').textContent = formatBetrag(stats.gesamt.gesamt || 0);
-    document.getElementById('statMonat').textContent = stats.dieserMonat.anzahl;
-    document.getElementById('statMonatBetrag').textContent = formatBetrag(stats.dieserMonat.gesamt || 0);
-  } catch (err) {
-    console.error('Statistiken konnten nicht geladen werden');
-  }
+function ladeStatistiken() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/statistiken', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      statsData = JSON.parse(xhr.responseText);
+      document.getElementById('statAnzahl').textContent = statsData.gesamt.anzahl || 0;
+      document.getElementById('statMonat').textContent = statsData.dieserMonat.anzahl || 0;
+      aktualisiereStatistikAnzeige();
+    } catch(e) {}
+  };
+  xhr.send();
 }
 
-async function speichereBeleg(e) {
-  e.preventDefault();
-  const id = document.getElementById('belegId').value;
-  const formError = document.getElementById('formError');
+function aktualisiereStatistikAnzeige() {
+  if (!statsData) return;
+  var eurCHF = wechselkurs.EUR_to_CHF || 0.95;
+  var chfEUR = wechselkurs.CHF_to_EUR || 1.053;
+
+  var gEur = statsData.gesamt.gesamt_eur || 0;
+  var gChf = statsData.gesamt.gesamt_chf || 0;
+  var mEur = statsData.dieserMonat.gesamt_eur || 0;
+  var mChf = statsData.dieserMonat.gesamt_chf || 0;
+
+  var gesamtAnzeige, monatAnzeige, kursText;
+  if (statsWaehrung === 'CHF') {
+    gesamtAnzeige = gChf + gEur * eurCHF;
+    monatAnzeige = mChf + mEur * eurCHF;
+    kursText = '1 EUR = ' + eurCHF.toFixed(4) + ' CHF';
+    document.getElementById('statGesamt').textContent = formatBetrag(gesamtAnzeige, 'CHF');
+    document.getElementById('statMonatBetrag').textContent = formatBetrag(monatAnzeige, 'CHF');
+  } else {
+    gesamtAnzeige = gEur + gChf * chfEUR;
+    monatAnzeige = mEur + mChf * chfEUR;
+    kursText = '1 CHF = ' + chfEUR.toFixed(4) + ' EUR';
+    document.getElementById('statGesamt').textContent = formatBetrag(gesamtAnzeige, 'EUR');
+    document.getElementById('statMonatBetrag').textContent = formatBetrag(monatAnzeige, 'EUR');
+  }
+
+  var kursEl = document.getElementById('statKurs');
+  if (kursEl) kursEl.textContent = (gChf > 0 && gEur > 0) ? kursText : '';
+}
+
+function speichereBeleg(e) {
+  if (e) e.preventDefault();
+  var id = document.getElementById('belegId').value;
+  var formError = document.getElementById('formError');
   formError.classList.add('hidden');
 
-  // Validation
-  const datum = document.getElementById('feldDatum').value;
-  const betrag = document.getElementById('feldBetrag').value;
-  const dateiFile = document.getElementById('feldDatei').files[0];
-  const hatExistingFile = !document.getElementById('existingFile').classList.contains('hidden');
+  var datum = document.getElementById('feldDatum').value;
+  var betrag = document.getElementById('feldBetrag').value;
+  var dateiFile = document.getElementById('feldDatei').files[0];
+  var hatExistingFile = !document.getElementById('existingFile').classList.contains('hidden');
 
   if (!datum) {
     formError.textContent = 'Bitte das Datum angeben.';
@@ -168,62 +274,65 @@ async function speichereBeleg(e) {
     return;
   }
 
-  const formData = new FormData();
+  var formData = new FormData();
   formData.append('datum', datum);
   formData.append('geschaeft', document.getElementById('feldGeschaeft').value);
   formData.append('betrag', betrag);
-  formData.append('kategorie', document.getElementById('feldKategorie').value);
   formData.append('notiz', document.getElementById('feldNotiz').value);
   formData.append('waehrung', document.getElementById('feldWaehrung').value);
-
   if (dateiFile) formData.append('datei', dateiFile);
   if (deleteFileFlag) formData.append('deleteFile', 'true');
 
-  const btn = document.getElementById('btnSpeichern');
+  var btn = document.getElementById('btnSpeichern');
   btn.disabled = true;
   btn.textContent = 'Speichern...';
 
-  try {
-    const url = id ? `/api/belege/${id}` : '/api/belege';
-    const method = id ? 'PUT' : 'POST';
-    const res = await fetch(url, { method, body: formData });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Fehler beim Speichern');
-    }
-
-    schliesseModal();
-    await ladeBelege();
-    await ladeStatistiken();
-    zeigeToast(id ? 'Beleg aktualisiert' : 'Beleg gespeichert', 'success');
-  } catch (err) {
-    zeigeToast(err.message, 'error');
-  } finally {
+  var xhr = new XMLHttpRequest();
+  var url = id ? '/api/belege/' + id : '/api/belege';
+  var method = id ? 'PUT' : 'POST';
+  xhr.open(method, url, true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
     btn.disabled = false;
     btn.textContent = 'Speichern';
-  }
+    try {
+      var data = JSON.parse(xhr.responseText);
+      if (xhr.status !== 200 && xhr.status !== 201) {
+        zeigeToast(data.error || 'Fehler beim Speichern', 'error');
+        return;
+      }
+      schliesseModal();
+      ladeBelege();
+      ladeStatistiken();
+      zeigeToast(id ? 'Beleg aktualisiert' : 'Beleg gespeichert', 'success');
+    } catch(e) {
+      zeigeToast('Fehler beim Speichern', 'error');
+    }
+  };
+  xhr.send(formData);
 }
 
-async function loescheBeleg(id) {
+function loescheBeleg(id) {
   if (!confirm('Beleg wirklich löschen?')) return;
-
-  try {
-    const res = await fetch(`/api/belege/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Löschen fehlgeschlagen');
-
-    await ladeBelege();
-    await ladeStatistiken();
+  var xhr = new XMLHttpRequest();
+  xhr.open('DELETE', '/api/belege/' + id, true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (xhr.status !== 200) {
+      try { var d = JSON.parse(xhr.responseText); zeigeToast(d.error || 'Löschen fehlgeschlagen', 'error'); } catch(e) {}
+      return;
+    }
+    ladeBelege();
+    ladeStatistiken();
     zeigeToast('Beleg gelöscht', 'success');
-  } catch (err) {
-    zeigeToast(err.message, 'error');
-  }
+  };
+  xhr.send();
 }
 
 // ===== Render =====
 function rendereGrid() {
-  const grid = document.getElementById('belegeGrid');
-  const empty = document.getElementById('emptyState');
+  var grid = document.getElementById('belegeGrid');
+  var empty = document.getElementById('emptyState');
 
   if (belege.length === 0) {
     grid.innerHTML = '';
@@ -232,95 +341,83 @@ function rendereGrid() {
   }
 
   empty.classList.add('hidden');
-  grid.innerHTML = belege.map(b => kartHTML(b)).join('');
+  grid.innerHTML = belege.map(function(b) { return kartHTML(b); }).join('');
 
-  grid.querySelectorAll('[data-action="edit"]').forEach(btn =>
-    btn.addEventListener('click', () => oeffneModal(parseInt(btn.dataset.id)))
-  );
-  grid.querySelectorAll('[data-action="delete"]').forEach(btn =>
-    btn.addEventListener('click', () => loescheBeleg(parseInt(btn.dataset.id)))
-  );
-  grid.querySelectorAll('[data-action="preview"]').forEach(el =>
-    el.addEventListener('click', () => oeffnePreview(parseInt(el.dataset.id)))
-  );
+  grid.querySelectorAll('[data-action="edit"]').forEach(function(btn) {
+    btn.addEventListener('click', function() { oeffneModal(parseInt(btn.dataset.id)); });
+  });
+  grid.querySelectorAll('[data-action="delete"]').forEach(function(btn) {
+    btn.addEventListener('click', function() { loescheBeleg(parseInt(btn.dataset.id)); });
+  });
+  grid.querySelectorAll('[data-action="preview"]').forEach(function(el) {
+    el.addEventListener('click', function() { oeffnePreview(parseInt(el.dataset.id)); });
+  });
 }
 
 function kartHTML(b) {
-  const hatDatei = !!b.dateipfad;
-  const istBild = hatDatei && /\.(jpg|jpeg|png|gif|webp)$/i.test(b.dateiname || '');
-  const istPdf = hatDatei && /\.pdf$/i.test(b.dateiname || '');
+  var hatDatei = !!b.dateipfad;
+  var istBild = hatDatei && /\.(jpg|jpeg|png|gif|webp)$/i.test(b.dateiname || '');
+  var istPdf = hatDatei && /\.pdf$/i.test(b.dateiname || '');
 
-  let thumbHTML = '';
+  var thumbHTML = '';
   if (istBild) {
-    thumbHTML = `
-      <div class="card-thumb" data-action="preview" data-id="${b.id}">
-        <img src="/uploads/${b.dateipfad}" alt="Beleg" loading="lazy">
-        <div class="thumb-overlay">Vergrössern</div>
-      </div>`;
+    thumbHTML = '<div class="card-thumb" data-action="preview" data-id="' + b.id + '">' +
+      '<img src="/uploads/' + b.dateipfad + '" alt="Beleg" loading="lazy">' +
+      '<div class="thumb-overlay">Vergrössern</div></div>';
   } else if (istPdf) {
-    thumbHTML = `
-      <div class="card-thumb" data-action="preview" data-id="${b.id}">
-        <div class="thumb-placeholder">📄</div>
-        <div class="thumb-overlay">PDF anzeigen</div>
-      </div>`;
+    thumbHTML = '<div class="card-thumb" data-action="preview" data-id="' + b.id + '">' +
+      '<div class="thumb-placeholder">📄</div><div class="thumb-overlay">PDF anzeigen</div></div>';
   } else if (hatDatei) {
-    thumbHTML = `
-      <div class="card-thumb" data-action="preview" data-id="${b.id}">
-        <div class="thumb-placeholder">📎</div>
-        <div class="thumb-overlay">Datei anzeigen</div>
-      </div>`;
+    thumbHTML = '<div class="card-thumb" data-action="preview" data-id="' + b.id + '">' +
+      '<div class="thumb-placeholder">📎</div><div class="thumb-overlay">Datei anzeigen</div></div>';
   } else {
-    thumbHTML = `
-      <div class="card-thumb" style="cursor:default;">
-        <div class="thumb-placeholder">🧾</div>
-      </div>`;
+    thumbHTML = '<div class="card-thumb" style="cursor:default;">' +
+      '<div class="thumb-placeholder">🧾</div></div>';
   }
 
-  const istEingetragen = b.status === 'eingetragen';
-  const waehrung = b.waehrung || 'EUR';
+  var istEingetragen = b.status === 'eingetragen';
+  var waehrung = b.waehrung || 'EUR';
 
-  return `
-    <div class="beleg-card">
-      ${thumbHTML}
-      <div class="card-body">
-        <div class="card-top">
-          <span class="card-shop">${escapeHtml(b.geschaeft)}</span>
-          <span class="card-amount">${formatBetrag(b.betrag, waehrung)}</span>
-        </div>
-        <div class="card-meta">
-          <span class="card-date">${formatDatum(b.datum)}</span>
-          <span class="badge cat-${b.kategorie}">${b.kategorie}</span>
-          <span class="badge status-${b.status || 'ausstehend'}">${istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend'}</span>
-        </div>
-        ${b.notiz ? `<div class="card-note">${escapeHtml(b.notiz)}</div>` : ''}
-      </div>
-      <div class="card-actions">
-        ${!istEingetragen ? `<button class="btn-icon" data-action="edit" data-id="${b.id}">&#9998; Bearbeiten</button>` : ''}
-        ${hatDatei ? `<button class="btn-icon" data-action="preview" data-id="${b.id}">&#128065; Ansehen</button>` : ''}
-        ${!istEingetragen ? `<button class="btn-icon danger" data-action="delete" data-id="${b.id}">&#128465; Löschen</button>` : ''}
-      </div>
-    </div>`;
+  return '<div class="beleg-card">' +
+    thumbHTML +
+    '<div class="card-body">' +
+      '<div class="card-top">' +
+        '<span class="card-shop">' + escapeHtml(b.geschaeft) + '</span>' +
+        '<span class="card-amount">' + formatBetrag(b.betrag, waehrung) + '</span>' +
+      '</div>' +
+      '<div class="card-meta">' +
+        '<span class="card-date">' + formatDatum(b.datum) + '</span>' +
+        '<span class="badge status-' + (b.status || 'ausstehend') + '">' +
+          (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') + '</span>' +
+      '</div>' +
+      (b.notiz ? '<div class="card-note">' + escapeHtml(b.notiz) + '</div>' : '') +
+    '</div>' +
+    '<div class="card-actions">' +
+      (!istEingetragen ? '<button class="btn-icon" data-action="edit" data-id="' + b.id + '">&#9998; Bearbeiten</button>' : '') +
+      (hatDatei ? '<button class="btn-icon" data-action="preview" data-id="' + b.id + '">&#128065; Ansehen</button>' : '') +
+      (!istEingetragen ? '<button class="btn-icon danger" data-action="delete" data-id="' + b.id + '">&#128465; Löschen</button>' : '') +
+    '</div>' +
+  '</div>';
 }
 
 // ===== Modal =====
-function oeffneModal(id = null) {
+function oeffneModal(id) {
   deleteFileFlag = false;
-  const overlay = document.getElementById('modalOverlay');
-  const form = document.getElementById('formBeleg');
+  var overlay = document.getElementById('modalOverlay');
+  var form = document.getElementById('formBeleg');
   form.reset();
   loescheDateiVorschau();
   document.getElementById('existingFile').classList.add('hidden');
   document.getElementById('belegId').value = '';
 
-  if (id !== null) {
-    const b = belege.find(x => x.id === id);
+  if (id !== undefined && id !== null) {
+    var b = belege.find(function(x) { return x.id === id; });
     if (!b) return;
     document.getElementById('modalTitel').textContent = 'Beleg bearbeiten';
     document.getElementById('belegId').value = b.id;
     document.getElementById('feldDatum').value = b.datum;
     document.getElementById('feldGeschaeft').value = b.geschaeft;
     document.getElementById('feldBetrag').value = b.betrag;
-    document.getElementById('feldKategorie').value = b.kategorie;
     document.getElementById('feldNotiz').value = b.notiz || '';
     setWaehrung(b.waehrung || 'EUR');
 
@@ -344,50 +441,44 @@ function schliesseModal() {
 
 // ===== Preview =====
 function oeffnePreview(id) {
-  const b = belege.find(x => x.id === id);
+  var b = belege.find(function(x) { return x.id === id; });
   if (!b || !b.dateipfad) return;
 
-  const overlay = document.getElementById('previewOverlay');
-  const content = document.getElementById('previewContent');
-  const istBild = /\.(jpg|jpeg|png|gif|webp)$/i.test(b.dateiname || '');
-  const istPdf = /\.pdf$/i.test(b.dateiname || '');
+  var overlay = document.getElementById('previewOverlay');
+  var content = document.getElementById('previewContent');
+  var istBild = /\.(jpg|jpeg|png|gif|webp)$/i.test(b.dateiname || '');
+  var istPdf = /\.pdf$/i.test(b.dateiname || '');
 
-  document.getElementById('previewTitel').textContent = b.geschaeft;
+  document.getElementById('previewTitel').textContent = b.geschaeft || 'Beleg-Vorschau';
 
-  let mediaHTML = '';
+  var mediaHTML = '';
   if (istBild) {
-    mediaHTML = `<img src="/uploads/${b.dateipfad}" alt="Beleg ${escapeHtml(b.geschaeft)}">`;
+    mediaHTML = '<img src="/uploads/' + b.dateipfad + '" alt="Beleg">';
   } else if (istPdf) {
-    mediaHTML = `<iframe src="/uploads/${b.dateipfad}" title="PDF Beleg"></iframe>`;
+    mediaHTML = '<iframe src="/uploads/' + b.dateipfad + '" title="PDF Beleg"></iframe>';
   } else {
-    mediaHTML = `<a href="/uploads/${b.dateipfad}" download="${escapeHtml(b.dateiname)}" class="btn btn-primary">Datei herunterladen</a>`;
+    mediaHTML = '<a href="/uploads/' + b.dateipfad + '" download="' + escapeHtml(b.dateiname) + '" class="btn btn-primary">Datei herunterladen</a>';
   }
 
-  content.innerHTML = `
-    <div class="preview-info">
-      <div class="preview-info-item">
-        <div class="preview-info-label">Geschäft</div>
-        <div class="preview-info-value">${escapeHtml(b.geschaeft)}</div>
-      </div>
-      <div class="preview-info-item">
-        <div class="preview-info-label">Betrag</div>
-        <div class="preview-info-value">${formatBetrag(b.betrag)}</div>
-      </div>
-      <div class="preview-info-item">
-        <div class="preview-info-label">Datum</div>
-        <div class="preview-info-value">${formatDatum(b.datum)}</div>
-      </div>
-      <div class="preview-info-item">
-        <div class="preview-info-label">Kategorie</div>
-        <div class="preview-info-value">${b.kategorie}</div>
-      </div>
-      ${b.notiz ? `<div class="preview-info-item" style="grid-column:1/-1">
-        <div class="preview-info-label">Notiz</div>
-        <div class="preview-info-value">${escapeHtml(b.notiz)}</div>
-      </div>` : ''}
-    </div>
-    ${mediaHTML}
-  `;
+  content.innerHTML =
+    '<div class="preview-info">' +
+      '<div class="preview-info-item">' +
+        '<div class="preview-info-label">Geschäft</div>' +
+        '<div class="preview-info-value">' + escapeHtml(b.geschaeft) + '</div>' +
+      '</div>' +
+      '<div class="preview-info-item">' +
+        '<div class="preview-info-label">Betrag</div>' +
+        '<div class="preview-info-value">' + formatBetrag(b.betrag, b.waehrung) + '</div>' +
+      '</div>' +
+      '<div class="preview-info-item">' +
+        '<div class="preview-info-label">Datum</div>' +
+        '<div class="preview-info-value">' + formatDatum(b.datum) + '</div>' +
+      '</div>' +
+      (b.notiz ? '<div class="preview-info-item" style="grid-column:1/-1">' +
+        '<div class="preview-info-label">Notiz</div>' +
+        '<div class="preview-info-value">' + escapeHtml(b.notiz) + '</div>' +
+      '</div>' : '') +
+    '</div>' + mediaHTML;
 
   overlay.classList.add('active');
 }
@@ -398,19 +489,19 @@ function schliessePreview() {
 
 // ===== File Preview =====
 function zeigeVorschau(file) {
-  const placeholder = document.getElementById('uploadPlaceholder');
-  const preview = document.getElementById('uploadPreview');
-  const previewImg = document.getElementById('previewImg');
-  const previewPdf = document.getElementById('previewPdf');
-  const previewName = document.getElementById('previewName');
+  var placeholder = document.getElementById('uploadPlaceholder');
+  var preview = document.getElementById('uploadPreview');
+  var previewImg = document.getElementById('previewImg');
+  var previewPdf = document.getElementById('previewPdf');
+  var previewName = document.getElementById('previewName');
 
   placeholder.classList.add('hidden');
   preview.classList.remove('hidden');
   previewName.textContent = file.name;
 
   if (file.type.startsWith('image/')) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    var reader = new FileReader();
+    reader.onload = function(e) {
       previewImg.src = e.target.result;
       previewImg.classList.remove('hidden');
       previewPdf.classList.add('hidden');
@@ -439,22 +530,22 @@ function resetFilter() {
 }
 
 // ===== Toast =====
-function zeigeToast(msg, type = '') {
-  const toast = document.getElementById('toast');
+function zeigeToast(msg, type) {
+  var toast = document.getElementById('toast');
   toast.textContent = msg;
-  toast.className = 'toast show ' + type;
-  setTimeout(() => toast.classList.remove('show'), 3000);
+  toast.className = 'toast show ' + (type || '');
+  setTimeout(function() { toast.classList.remove('show'); }, 3000);
 }
 
 // ===== Helpers =====
 function formatBetrag(betrag, waehrung) {
-  const currency = waehrung === 'CHF' ? 'CHF' : 'EUR';
-  return new Intl.NumberFormat('de-CH', { style: 'currency', currency }).format(betrag);
+  var currency = waehrung === 'CHF' ? 'CHF' : 'EUR';
+  return new Intl.NumberFormat('de-CH', { style: 'currency', currency: currency }).format(betrag);
 }
 
 function setWaehrung(w) {
   document.getElementById('feldWaehrung').value = w;
-  document.querySelectorAll('.waehrung-btn').forEach(btn => {
+  document.querySelectorAll('#formBeleg .waehrung-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.waehrung === w);
   });
 }
