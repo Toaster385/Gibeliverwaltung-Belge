@@ -99,14 +99,14 @@
         <h2 id="modalTitel">Neuer Beleg</h2>
         <button class="modal-close" id="modalClose">&times;</button>
       </div>
-      <form id="formBeleg" enctype="multipart/form-data">
+      <form id="formBeleg" novalidate>
         <input type="hidden" id="belegId">
         <div class="form-grid">
-          <div class="form-group">
+          <div class="form-group form-full">
             <label for="feldDatum">Datum *</label>
             <input type="date" id="feldDatum" class="input-field">
           </div>
-          <div class="form-group">
+          <div class="form-group form-full">
             <label>Betrag *</label>
             <div class="betrag-row">
               <div class="waehrung-toggle">
@@ -150,7 +150,7 @@
         <div class="form-error hidden" id="formError"></div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" id="btnAbbrechen">Abbrechen</button>
-          <button type="submit" class="btn btn-primary" id="btnSpeichern">Speichern</button>
+          <button type="button" class="btn btn-primary" id="btnSpeichern">Speichern</button>
         </div>
       </form>
     </div>

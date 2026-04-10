@@ -7,14 +7,16 @@
   <link rel="stylesheet" href="login.css">
   <style>
     body { background: linear-gradient(135deg, #1f2937 0%, #374151 100%); align-items: flex-start; padding: 32px 24px; }
-    .admin-wrapper { width: 100%; max-width: 720px; margin: 0 auto; }
+    .admin-wrapper { width: 100%; max-width: 760px; margin: 0 auto; }
     .admin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
     .admin-header h1 { color: white; font-size: 22px; font-weight: 700; }
     .admin-header a { color: rgba(255,255,255,.7); font-size: 13px; text-decoration: none; }
     .admin-header a:hover { color: white; }
     .card { background: white; border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.2); overflow-x: auto; }
     .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #111827; display: flex; align-items: center; gap: 8px; }
-    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 0; }
+    .card h3 { font-size: 14px; font-weight: 700; color: #374151; margin: 20px 0 12px; display: flex; align-items: center; gap: 6px; }
+    .card-divider { border: none; border-top: 1px solid #f3f4f6; margin: 20px 0; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     .stat-box { background: #f9fafb; border-radius: 10px; padding: 16px; }
     .stat-box .label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
     .stat-box .value { font-size: 20px; font-weight: 700; color: #4f46e5; }
@@ -23,23 +25,15 @@
     td { padding: 10px; border-bottom: 1px solid #f9fafb; color: #374151; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     .badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-    .badge-admin { background: #ede9fe; color: #5b21b6; }
-    .badge-user { background: #f3f4f6; color: #6b7280; }
     .badge-eingetragen { background: #d1fae5; color: #065f46; }
     .badge-ausstehend { background: #fef3c7; color: #92400e; }
     .badge-aktiv { background: #d1fae5; color: #065f46; }
     .badge-inaktiv { background: #f3f4f6; color: #6b7280; }
-    .btn-status { background: #ede9fe; color: #5b21b6; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .btn-status:hover { background: #ddd6fe; }
-    .btn-rolle { padding: 3px 10px; border-radius: 6px; border: 1.5px solid #e5e7eb; background: #f9fafb; color: #6b7280; font-size: 11px; font-weight: 600; cursor: pointer; margin: 2px; }
-    .btn-rolle.active { background: #4f46e5; color: white; border-color: #4f46e5; }
-    .btn-rolle:hover:not(:disabled):not(.active) { background: #ede9fe; border-color: #a5b4fc; color: #4f46e5; }
-    .btn-rolle:disabled { opacity: .5; cursor: not-allowed; }
-    .add-user-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 20px; }
-    .add-user-form .form-group { margin-bottom: 0; }
     .btn-sm { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn-danger { background: #fee2e2; color: #991b1b; }
     .btn-danger:hover { background: #fecaca; }
+    .btn-status { background: #ede9fe; color: #5b21b6; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-status:hover { background: #ddd6fe; }
     .btn-add { padding: 10px 18px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .btn-add:hover { background: #3730a3; }
     .btn-open { background: #d1fae5; color: #065f46; padding: 10px 20px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -50,13 +44,23 @@
     .btn-activate:hover { background: #ddd6fe; }
     .btn-deactivate { background: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn-deactivate:hover { background: #fde68a; }
+    .btn-rolle { padding: 3px 10px; border-radius: 6px; border: 1.5px solid #e5e7eb; background: #f9fafb; color: #6b7280; font-size: 11px; font-weight: 600; cursor: pointer; margin: 2px; }
+    .btn-rolle.active { background: #4f46e5; color: white; border-color: #4f46e5; }
+    .btn-rolle:hover:not(:disabled):not(.active) { background: #ede9fe; border-color: #a5b4fc; color: #4f46e5; }
+    .btn-rolle:disabled { opacity: .5; cursor: not-allowed; }
     .kasse-status-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
     .kasse-info { font-size: 14px; color: #374151; }
-    .kasse-info strong { font-size: 16px; }
     .kasse-hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
     .aktive-periode-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #1e40af; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
     .periode-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 16px; }
     .periode-form .form-group { margin-bottom: 0; }
+    .add-user-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 20px; }
+    .add-user-form .form-group { margin-bottom: 0; }
+    /* Bottom section toggle buttons */
+    .section-toggles { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; padding: 8px 0 24px; }
+    .btn-section-toggle { background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.25); border-radius: 10px; padding: 12px 24px; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.85); cursor: pointer; transition: all .15s; }
+    .btn-section-toggle:hover { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.5); color: white; }
+    .btn-section-toggle.active { background: white; border-color: white; color: #4f46e5; }
     .login-section { display: none; }
     .login-section.active { display: block; }
     .main-section { display: none; }
@@ -68,6 +72,7 @@
       .periode-form { grid-template-columns: 1fr; }
       .stats-grid { grid-template-columns: 1fr; }
       .kasse-status-row { flex-direction: column; align-items: flex-start; }
+      .section-toggles { flex-direction: column; }
     }
   </style>
 </head>
@@ -107,7 +112,7 @@
         </div>
       </div>
 
-      <!-- Stats -->
+      <!-- 1. Übersicht -->
       <div class="card">
         <h2>📊 Übersicht</h2>
         <div class="stats-grid">
@@ -117,9 +122,11 @@
         </div>
       </div>
 
-      <!-- Kasse -->
+      <!-- 2. Kasse & Perioden (combined) -->
       <div class="card">
-        <h2>🔒 Kasse</h2>
+        <h2>🔒 Kasse &amp; Perioden</h2>
+
+        <!-- Kasse Status -->
         <div class="kasse-status-row">
           <div class="kasse-info">
             <div>Status: <strong id="kasseStatusText">–</strong></div>
@@ -127,16 +134,18 @@
           </div>
           <button id="btnToggleKasse" class="btn-close">Laden...</button>
         </div>
-      </div>
 
-      <!-- Perioden -->
-      <div class="card">
-        <h2>📅 Perioden</h2>
-        <p style="font-size:12px;color:#6b7280;margin-bottom:14px;">Eine Periode entspricht einem Abrechnungszeitraum (z.B. ein Jahr). Wenn eine Periode aktiviert wird, öffnet die Kasse automatisch. Beim Deaktivieren schließt sie wieder.</p>
+        <hr class="card-divider">
+
+        <!-- Perioden -->
+        <h3>📅 Perioden</h3>
+        <p style="font-size:12px;color:#6b7280;margin-bottom:14px;">Erstelle einen Abrechnungszeitraum (z.B. ein Jahr). Beim Aktivieren öffnet die Kasse automatisch, beim Beenden schließt sie.</p>
+
         <div id="aktivePeriodeInfo" class="aktive-periode-box" style="display:none;">
           <span id="aktivePeriodeText"></span>
-          <button class="btn-deactivate" onclick="deaktivierePeriode()">Periode beenden & Kasse schließen</button>
+          <button class="btn-deactivate" onclick="deaktivierePeriode()">Periode beenden &amp; Kasse schließen</button>
         </div>
+
         <div class="periode-form">
           <div class="form-group">
             <label>Name (z.B. Jahr 2025)</label>
@@ -161,59 +170,7 @@
         </table>
       </div>
 
-      <!-- Profil -->
-      <div class="card">
-        <h2>👤 Mein Profil ändern</h2>
-        <div style="display:grid;gap:12px;max-width:400px;">
-          <div class="form-group">
-            <label>Neuer Benutzername <span style="color:#9ca3af;font-weight:400">(leer lassen = unverändert)</span></label>
-            <input type="text" id="profilName" class="input-field" placeholder="Neuer Name">
-          </div>
-          <div class="form-group">
-            <label>Neues Passwort <span style="color:#9ca3af;font-weight:400">(leer lassen = unverändert)</span></label>
-            <input type="password" id="profilPasswortNeu" class="input-field" placeholder="Neues Passwort (min. 4 Zeichen)">
-          </div>
-          <div class="form-group">
-            <label>Aktuelles Passwort <span style="color:#ef4444">*</span></label>
-            <input type="password" id="profilPasswortAktuell" class="input-field" placeholder="Zur Bestätigung erforderlich">
-          </div>
-          <div id="profilError" class="error-msg hidden"></div>
-          <div id="profilSuccess" style="background:#d1fae5;color:#065f46;padding:10px 14px;border-radius:8px;font-size:13px;display:none;">✓ Profil erfolgreich aktualisiert!</div>
-          <button class="btn-add" id="btnSpeichernProfil">Speichern</button>
-        </div>
-      </div>
-
-      <!-- User Management -->
-      <div class="card">
-        <h2>👥 Benutzerverwaltung</h2>
-        <div class="add-user-form">
-          <div class="form-group">
-            <label>Benutzername</label>
-            <input type="text" id="neuBenutzername" class="input-field" placeholder="Name">
-          </div>
-          <div class="form-group">
-            <label>Geburtsdatum</label>
-            <input type="date" id="neuGeburtsdatum" class="input-field">
-          </div>
-          <div class="form-group">
-            <label>Rolle</label>
-            <select id="neuRolle" class="input-field">
-              <option value="gibeli-gast">Gibeli-Gast</option>
-              <option value="verwaltung">Verwaltung</option>
-            </select>
-          </div>
-          <button class="btn-add" id="btnAddUser">+ Hinzufügen</button>
-        </div>
-        <div id="userError" class="error-msg hidden"></div>
-        <table>
-          <thead>
-            <tr><th>Benutzername</th><th>Geburtsdatum</th><th>Rollen</th><th>Belege</th><th></th></tr>
-          </thead>
-          <tbody id="userTableBody"></tbody>
-        </table>
-      </div>
-
-      <!-- All Receipts -->
+      <!-- 3. Alle Belege -->
       <div class="card">
         <h2>🧾 Alle Belege</h2>
         <table>
@@ -223,11 +180,74 @@
           <tbody id="belegeTableBody"></tbody>
         </table>
       </div>
-    </div>
-  </div>
+
+      <!-- Bottom toggle buttons -->
+      <div class="section-toggles">
+        <button class="btn-section-toggle" id="btnToggleBenutzer" onclick="toggleSection('benutzer')">👥 Benutzerverwaltung</button>
+        <button class="btn-section-toggle" id="btnToggleProfil" onclick="toggleSection('profil')">👤 Profil ändern</button>
+      </div>
+
+      <!-- Collapsible: Benutzerverwaltung -->
+      <div id="section-benutzer" style="display:none;">
+        <div class="card">
+          <h2>👥 Benutzerverwaltung</h2>
+          <div class="add-user-form">
+            <div class="form-group">
+              <label>Benutzername</label>
+              <input type="text" id="neuBenutzername" class="input-field" placeholder="Name">
+            </div>
+            <div class="form-group">
+              <label>Geburtsdatum</label>
+              <input type="date" id="neuGeburtsdatum" class="input-field">
+            </div>
+            <div class="form-group">
+              <label>Rolle</label>
+              <select id="neuRolle" class="input-field">
+                <option value="gibeli-gast">Gibeli-Gast</option>
+                <option value="verwaltung">Verwaltung</option>
+              </select>
+            </div>
+            <button class="btn-add" id="btnAddUser">+ Hinzufügen</button>
+          </div>
+          <div id="userError" class="error-msg hidden"></div>
+          <table>
+            <thead>
+              <tr><th>Benutzername</th><th>Geburtsdatum</th><th>Rollen</th><th>Belege</th><th></th></tr>
+            </thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Collapsible: Profil -->
+      <div id="section-profil" style="display:none;">
+        <div class="card">
+          <h2>👤 Mein Profil ändern</h2>
+          <div style="display:grid;gap:12px;max-width:400px;">
+            <div class="form-group">
+              <label>Neuer Benutzername <span style="color:#9ca3af;font-weight:400">(leer = unverändert)</span></label>
+              <input type="text" id="profilName" class="input-field" placeholder="Neuer Name">
+            </div>
+            <div class="form-group">
+              <label>Neues Passwort <span style="color:#9ca3af;font-weight:400">(leer = unverändert)</span></label>
+              <input type="password" id="profilPasswortNeu" class="input-field" placeholder="Neues Passwort (min. 4 Zeichen)">
+            </div>
+            <div class="form-group">
+              <label>Aktuelles Passwort <span style="color:#ef4444">*</span></label>
+              <input type="password" id="profilPasswortAktuell" class="input-field" placeholder="Zur Bestätigung erforderlich">
+            </div>
+            <div id="profilError" class="error-msg hidden"></div>
+            <div id="profilSuccess" style="background:#d1fae5;color:#065f46;padding:10px 14px;border-radius:8px;font-size:13px;display:none;">✓ Profil erfolgreich aktualisiert!</div>
+            <button class="btn-add" id="btnSpeichernProfil">Speichern</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end mainSection -->
+  </div><!-- end admin-wrapper -->
 
   <script>
-    // Check if already logged in as admin
+    // Auto-login if session still active
     fetch('/api/ich').then(function(r) {
       if (r.ok) return r.json();
     }).then(function(user) {
@@ -236,12 +256,8 @@
       }
     }).catch(function() {});
 
-    document.getElementById('btnAdminLogin').addEventListener('click', function() {
-      adminLogin();
-    });
-    document.getElementById('adminPass').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') adminLogin();
-    });
+    document.getElementById('btnAdminLogin').addEventListener('click', function() { adminLogin(); });
+    document.getElementById('adminPass').addEventListener('keydown', function(e) { if (e.key === 'Enter') adminLogin(); });
 
     function adminLogin() {
       var btn = document.getElementById('btnAdminLogin');
@@ -249,41 +265,25 @@
       var benutzername = document.getElementById('adminUser').value.trim();
       var passwort = document.getElementById('adminPass').value;
       err.classList.add('hidden');
-
       if (!benutzername || !passwort) {
         err.textContent = 'Bitte Benutzername und Passwort eingeben';
         err.classList.remove('hidden');
         return;
       }
-
-      btn.disabled = true;
-      btn.textContent = 'Anmelden...';
-
+      btn.disabled = true; btn.textContent = 'Anmelden...';
       var xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/login', true);
       xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        btn.disabled = false;
-        btn.textContent = 'Anmelden';
+        btn.disabled = false; btn.textContent = 'Anmelden';
         try {
           var data = JSON.parse(xhr.responseText);
-          if (xhr.status !== 200) {
-            err.textContent = data.error || 'Anmeldung fehlgeschlagen';
-            err.classList.remove('hidden');
-            return;
-          }
+          if (xhr.status !== 200) { err.textContent = data.error || 'Anmeldung fehlgeschlagen'; err.classList.remove('hidden'); return; }
           var rollen = (data.rolle || '').split(',').map(function(r){return r.trim();});
-          if (!rollen.includes('admin')) {
-            err.textContent = 'Kein Admin-Konto';
-            err.classList.remove('hidden');
-            return;
-          }
+          if (!rollen.includes('admin')) { err.textContent = 'Kein Admin-Konto'; err.classList.remove('hidden'); return; }
           showAdminPanel();
-        } catch(e) {
-          err.textContent = 'Fehler beim Anmelden';
-          err.classList.remove('hidden');
-        }
+        } catch(e) { err.textContent = 'Fehler beim Anmelden'; err.classList.remove('hidden'); }
       };
       xhr.send(JSON.stringify({ benutzername: benutzername, passwort: passwort }));
     }
@@ -292,24 +292,38 @@
       e.preventDefault();
       var xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/logout', true);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
-        window.location.href = '/login.html';
-      };
+      xhr.onreadystatechange = function() { if (xhr.readyState === 4) window.location.href = '/login.html'; };
       xhr.send();
     });
 
+    function showAdminPanel() {
+      document.getElementById('loginSection').classList.remove('active');
+      document.getElementById('mainSection').classList.add('active');
+      ladeStats();
+      ladeKasse();
+      ladePerioden();
+      ladeBelege();
+    }
+
+    function toggleSection(name) {
+      var el = document.getElementById('section-' + name);
+      var btn = document.getElementById('btnToggle' + name.charAt(0).toUpperCase() + name.slice(1));
+      var isVisible = el.style.display !== 'none';
+      el.style.display = isVisible ? 'none' : 'block';
+      if (btn) btn.classList.toggle('active', !isVisible);
+      if (!isVisible) {
+        if (name === 'benutzer') ladeBenutzer();
+      }
+    }
+
+    // ===== Benutzer =====
     document.getElementById('btnAddUser').addEventListener('click', function() {
       var err = document.getElementById('userError');
       err.classList.add('hidden');
       var benutzername = document.getElementById('neuBenutzername').value.trim();
       var geburtsdatum = document.getElementById('neuGeburtsdatum').value;
       var rolle = document.getElementById('neuRolle').value;
-      if (!benutzername || !geburtsdatum) {
-        err.textContent = 'Bitte Name und Geburtsdatum eingeben';
-        err.classList.remove('hidden');
-        return;
-      }
+      if (!benutzername || !geburtsdatum) { err.textContent = 'Bitte Name und Geburtsdatum eingeben'; err.classList.remove('hidden'); return; }
       var xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/admin/benutzer', true);
       xhr.setRequestHeader('Content-Type', 'application/json');
@@ -326,42 +340,48 @@
       xhr.send(JSON.stringify({ benutzername: benutzername, geburtsdatum: geburtsdatum, rollen: [rolle] }));
     });
 
-    document.getElementById('btnAddPeriode').addEventListener('click', function() {
-      var err = document.getElementById('periodeError');
-      err.classList.add('hidden');
-      var name = document.getElementById('neuPeriodeName').value.trim();
-      var von = document.getElementById('neuPeriodeVon').value;
-      var bis = document.getElementById('neuPeriodeBis').value;
-      if (!name || !von || !bis) {
-        err.textContent = 'Bitte Name, Von und Bis angeben';
-        err.classList.remove('hidden');
-        return;
-      }
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/admin/perioden', true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
-        try {
-          var data = JSON.parse(xhr.responseText);
-          if (xhr.status !== 201) { err.textContent = data.error || 'Fehler'; err.classList.remove('hidden'); return; }
-          document.getElementById('neuPeriodeName').value = '';
-          document.getElementById('neuPeriodeVon').value = '';
-          document.getElementById('neuPeriodeBis').value = '';
-          ladePerioden();
-        } catch(e) { err.textContent = 'Fehler'; err.classList.remove('hidden'); }
+    function ladeBenutzer() {
+      var xhr1 = new XMLHttpRequest();
+      xhr1.open('GET', '/api/admin/benutzer', true);
+      xhr1.onreadystatechange = function() {
+        if (xhr1.readyState !== 4) return;
+        var users = JSON.parse(xhr1.responseText);
+        var xhr2 = new XMLHttpRequest();
+        xhr2.open('GET', '/api/admin/statistiken', true);
+        xhr2.onreadystatechange = function() {
+          if (xhr2.readyState !== 4) return;
+          var stats = JSON.parse(xhr2.responseText);
+          var countMap = {};
+          stats.nachBenutzer.forEach(function(u) { countMap[u.benutzername] = u.anzahl || 0; });
+          var LABELS = { 'admin': 'Admin', 'verwaltung': 'Verwaltung', 'gibeli-gast': 'Gibeli-Gast' };
+          document.getElementById('userTableBody').innerHTML = users.map(function(u) {
+            var userRollen = (u.rolle || '').split(',').map(function(r) { return r.trim(); });
+            var istAdmin = u.benutzername === 'Lio';
+            var rollenButtons = ['admin','verwaltung','gibeli-gast'].map(function(r) {
+              var hat = userRollen.includes(r);
+              return '<button class="btn-rolle ' + (hat ? 'active' : '') + '" ' +
+                (istAdmin ? 'disabled' : 'onclick="toggleRolle(' + u.id + ',\'' + r + '\',' + hat + ')"') +
+                ' data-user="' + u.id + '" data-rolle="' + r + '">' + LABELS[r] + '</button>';
+            }).join('');
+            return '<tr>' +
+              '<td><strong>' + esc(u.benutzername) + '</strong></td>' +
+              '<td>' + (u.geburtsdatum ? new Date(u.geburtsdatum + 'T00:00:00').toLocaleDateString('de-DE') : '–') + '</td>' +
+              '<td><span id="user-rollen-' + u.id + '" data-rollen=\'' + JSON.stringify(userRollen) + '\'>' + rollenButtons + '</span></td>' +
+              '<td>' + (countMap[u.benutzername] || 0) + '</td>' +
+              '<td>' + (!istAdmin ? '<button class="btn-sm btn-danger" onclick="loescheBenutzer(' + u.id + ')">Löschen</button>' : '') + '</td>' +
+              '</tr>';
+          }).join('');
+        };
+        xhr2.send();
       };
-      xhr.send(JSON.stringify({ name: name, von: von, bis: bis }));
-    });
+      xhr1.send();
+    }
 
-    function toggleRolle(userId, rolle, hatRolle) {
+    function toggleRolle(userId, rolle, hatRolleAktuell) {
       var aktuelleRollen = JSON.parse(document.getElementById('user-rollen-' + userId).dataset.rollen);
-      var neueRollen;
-      if (hatRolle) {
-        neueRollen = aktuelleRollen.filter(function(r) { return r !== rolle; });
-      } else {
-        neueRollen = aktuelleRollen.concat([rolle]);
-      }
+      var neueRollen = hatRolleAktuell
+        ? aktuelleRollen.filter(function(r) { return r !== rolle; })
+        : aktuelleRollen.concat([rolle]);
       if (neueRollen.length === 0) { alert('Mindestens eine Rolle ist erforderlich'); return; }
       var xhr = new XMLHttpRequest();
       xhr.open('PUT', '/api/admin/benutzer/' + userId + '/rollen', true);
@@ -369,89 +389,106 @@
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
         if (xhr.status === 200) ladeBenutzer();
-        else { try { var d = JSON.parse(xhr.responseText); alert(d.error || 'Fehler'); } catch(e) {} }
+        else { try { alert(JSON.parse(xhr.responseText).error); } catch(e) {} }
       };
       xhr.send(JSON.stringify({ rollen: neueRollen }));
     }
 
-    function aktivierePeriode(id) {
+    function loescheBenutzer(id) {
+      if (!confirm('Benutzer wirklich löschen?')) return;
       var xhr = new XMLHttpRequest();
-      xhr.open('PUT', '/api/admin/perioden/' + id + '/aktivieren', true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.open('DELETE', '/api/admin/benutzer/' + id, true);
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        if (xhr.status === 200) { ladePerioden(); ladeKasse(); }
+        try { var d = JSON.parse(xhr.responseText); if (xhr.status !== 200) { alert(d.error); return; } ladeBenutzer(); } catch(e) {}
       };
       xhr.send();
     }
 
-    function deaktivierePeriode() {
-      if (!confirm('Periode beenden? Die Kasse wird automatisch geschlossen.')) return;
+    // ===== Belege =====
+    function ladeBelege() {
       var xhr = new XMLHttpRequest();
-      xhr.open('DELETE', '/api/admin/perioden/aktiv', true);
+      xhr.open('GET', '/api/admin/belege', true);
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        if (xhr.status === 200) { ladePerioden(); ladeKasse(); }
+        try {
+          var belege = JSON.parse(xhr.responseText);
+          document.getElementById('belegeTableBody').innerHTML = belege.map(function(b) {
+            var istEingetragen = b.status === 'eingetragen';
+            return '<tr>' +
+              '<td>' + new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE') + '</td>' +
+              '<td>' + esc(b.benutzername) + '</td>' +
+              '<td>' + esc(b.geschaeft) + '</td>' +
+              '<td><strong>' + fmt(b.betrag, b.waehrung) + '</strong></td>' +
+              '<td><span class="badge ' + (istEingetragen ? 'badge-eingetragen' : 'badge-ausstehend') + '">' +
+                (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') + '</span></td>' +
+              '<td style="white-space:nowrap;display:flex;gap:6px;">' +
+                '<button class="btn-sm btn-status" onclick="toggleStatus(' + b.id + ',\'' + b.status + '\')">' +
+                  (istEingetragen ? 'Ausstehend' : 'Eingetragen') + '</button>' +
+                '<button class="btn-sm btn-danger" onclick="loescheBeleg(' + b.id + ')">Löschen</button>' +
+              '</td></tr>';
+          }).join('') || '<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:20px;">Keine Belege vorhanden</td></tr>';
+        } catch(e) {}
       };
       xhr.send();
     }
 
-    document.getElementById('btnSpeichernProfil').addEventListener('click', function() {
-      var btn = this;
-      var err = document.getElementById('profilError');
-      var succ = document.getElementById('profilSuccess');
-      err.classList.add('hidden');
-      succ.style.display = 'none';
-      var name = document.getElementById('profilName').value.trim();
-      var passNeu = document.getElementById('profilPasswortNeu').value;
-      var passAkt = document.getElementById('profilPasswortAktuell').value;
-      if (!passAkt) {
-        err.textContent = 'Bitte aktuelles Passwort eingeben';
-        err.classList.remove('hidden');
-        return;
-      }
-      if (!name && !passNeu) {
-        err.textContent = 'Bitte neuen Namen oder neues Passwort angeben';
-        err.classList.remove('hidden');
-        return;
-      }
-      btn.disabled = true;
-      btn.textContent = 'Speichern...';
+    function toggleStatus(id, currentStatus) {
       var xhr = new XMLHttpRequest();
-      xhr.open('PUT', '/api/admin/profil', true);
+      xhr.open('PUT', '/api/admin/belege/' + id + '/status', true);
       xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() { if (xhr.readyState === 4 && xhr.status === 200) ladeBelege(); };
+      xhr.send(JSON.stringify({ status: currentStatus === 'eingetragen' ? 'ausstehend' : 'eingetragen' }));
+    }
+
+    function loescheBeleg(id) {
+      if (!confirm('Beleg wirklich löschen?')) return;
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', '/api/belege/' + id, true);
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        btn.disabled = false;
-        btn.textContent = 'Speichern';
+        if (xhr.status === 200) { ladeBelege(); ladeStats(); }
+        else alert('Fehler beim Löschen');
+      };
+      xhr.send();
+    }
+
+    // ===== Stats =====
+    function ladeStats() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/admin/statistiken', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
         try {
           var data = JSON.parse(xhr.responseText);
-          if (xhr.status !== 200) {
-            err.textContent = data.error || 'Fehler';
-            err.classList.remove('hidden');
-            return;
-          }
-          document.getElementById('profilName').value = '';
-          document.getElementById('profilPasswortNeu').value = '';
-          document.getElementById('profilPasswortAktuell').value = '';
-          succ.style.display = 'block';
-          setTimeout(function() { succ.style.display = 'none'; }, 4000);
-        } catch(e) {
-          err.textContent = 'Fehler beim Speichern';
-          err.classList.remove('hidden');
-        }
+          document.getElementById('statBelege').textContent = data.gesamt.anzahl || 0;
+          document.getElementById('statBetragEUR').textContent = fmtEUR(data.gesamt.summe_eur || 0);
+          document.getElementById('statBetragCHF').textContent = fmtCHF(data.gesamt.summe_chf || 0);
+        } catch(e) {}
       };
-      xhr.send(JSON.stringify({ benutzername: name || undefined, passwortNeu: passNeu || undefined, passwortAktuell: passAkt }));
-    });
+      xhr.send();
+    }
 
-    function loeschePeriode(id) {
-      if (!confirm('Periode wirklich löschen? Falls dies die aktive Periode ist, wird die Kasse geschlossen.')) return;
+    // ===== Kasse =====
+    function ladeKasse() {
       var xhr = new XMLHttpRequest();
-      xhr.open('DELETE', '/api/admin/perioden/' + id, true);
+      xhr.open('GET', '/api/einstellungen', true);
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        if (xhr.status === 200) { ladePerioden(); ladeKasse(); }
-        else alert('Fehler beim Löschen');
+        try {
+          var data = JSON.parse(xhr.responseText);
+          var geschlossen = data.kasse_geschlossen;
+          var statusEl = document.getElementById('kasseStatusText');
+          var btn = document.getElementById('btnToggleKasse');
+          if (geschlossen) {
+            statusEl.textContent = '🔒 Geschlossen'; statusEl.style.color = '#991b1b';
+            btn.textContent = 'Kasse öffnen'; btn.className = 'btn-open';
+          } else {
+            statusEl.textContent = '🟢 Geöffnet'; statusEl.style.color = '#065f46';
+            btn.textContent = 'Kasse schließen'; btn.className = 'btn-close';
+          }
+          btn.onclick = function() { toggleKasse(geschlossen); };
+        } catch(e) {}
       };
       xhr.send();
     }
@@ -471,108 +508,30 @@
       xhr.send(JSON.stringify({ geschlossen: !aktuellerStatus }));
     }
 
-    function showAdminPanel() {
-      document.getElementById('loginSection').classList.remove('active');
-      document.getElementById('mainSection').classList.add('active');
-      ladeBenutzer();
-      ladeBelege();
-      ladeStats();
-      ladeKasse();
-      ladePerioden();
-    }
-
-    function ladeBenutzer() {
-      var xhr1 = new XMLHttpRequest();
-      xhr1.open('GET', '/api/admin/benutzer', true);
-      xhr1.onreadystatechange = function() {
-        if (xhr1.readyState !== 4) return;
-        var users = JSON.parse(xhr1.responseText);
-        var xhr2 = new XMLHttpRequest();
-        xhr2.open('GET', '/api/admin/statistiken', true);
-        xhr2.onreadystatechange = function() {
-          if (xhr2.readyState !== 4) return;
-          var stats = JSON.parse(xhr2.responseText);
-          var countMap = {};
-          stats.nachBenutzer.forEach(function(u) { countMap[u.benutzername] = u.anzahl || 0; });
-          var ROLLEN_LABELS = { 'admin': 'Admin', 'verwaltung': 'Verwaltung', 'gibeli-gast': 'Gibeli-Gast' };
-          document.getElementById('userTableBody').innerHTML = users.map(function(u) {
-            var userRollen = (u.rolle || '').split(',').map(function(r) { return r.trim(); });
-            var istAdmin = u.benutzername === 'Lio';
-            var rollenButtons = ['admin','verwaltung','gibeli-gast'].map(function(r) {
-              var hat = userRollen.includes(r);
-              return '<button class="btn-rolle ' + (hat ? 'active' : '') + '" ' +
-                (istAdmin ? 'disabled' : 'onclick="toggleRolle(' + u.id + ',\'' + r + '\',' + hat + ')"') +
-                ' data-user="' + u.id + '" data-rolle="' + r + '">' + ROLLEN_LABELS[r] + '</button>';
-            }).join('');
-            return '<tr>' +
-              '<td><strong>' + esc(u.benutzername) + '</strong></td>' +
-              '<td>' + (u.geburtsdatum ? new Date(u.geburtsdatum + 'T00:00:00').toLocaleDateString('de-DE') : '–') + '</td>' +
-              '<td><span id="user-rollen-' + u.id + '" data-rollen=\'' + JSON.stringify(userRollen) + '\'>' + rollenButtons + '</span></td>' +
-              '<td>' + (countMap[u.benutzername] || 0) + '</td>' +
-              '<td>' + (!istAdmin ? '<button class="btn-sm btn-danger" onclick="loescheBenutzer(' + u.id + ')">Löschen</button>' : '') + '</td>' +
-              '</tr>';
-          }).join('');
-        };
-        xhr2.send();
-      };
-      xhr1.send();
-    }
-
-    function ladeBelege() {
+    // ===== Perioden =====
+    document.getElementById('btnAddPeriode').addEventListener('click', function() {
+      var err = document.getElementById('periodeError');
+      err.classList.add('hidden');
+      var name = document.getElementById('neuPeriodeName').value.trim();
+      var von = document.getElementById('neuPeriodeVon').value;
+      var bis = document.getElementById('neuPeriodeBis').value;
+      if (!name || !von || !bis) { err.textContent = 'Bitte Name, Von und Bis angeben'; err.classList.remove('hidden'); return; }
       var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/api/admin/belege', true);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
-        var belege = JSON.parse(xhr.responseText);
-        document.getElementById('belegeTableBody').innerHTML = belege.map(function(b) {
-          var istEingetragen = b.status === 'eingetragen';
-          var waehrung = b.waehrung || 'EUR';
-          return '<tr id="beleg-row-' + b.id + '">' +
-            '<td>' + new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE') + '</td>' +
-            '<td>' + esc(b.benutzername) + '</td>' +
-            '<td>' + esc(b.geschaeft) + '</td>' +
-            '<td><strong>' + fmt(b.betrag, waehrung) + '</strong></td>' +
-            '<td><span class="badge ' + (istEingetragen ? 'badge-eingetragen' : 'badge-ausstehend') + '">' +
-              (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') +
-            '</span></td>' +
-            '<td style="white-space:nowrap;display:flex;gap:6px;">' +
-              '<button class="btn-sm btn-status" onclick="toggleStatus(' + b.id + ',\'' + b.status + '\')">' +
-                (istEingetragen ? 'Ausstehend' : 'Eingetragen') +
-              '</button>' +
-              '<button class="btn-sm btn-danger" onclick="loescheBeleg(' + b.id + ')">Löschen</button>' +
-            '</td>' +
-          '</tr>';
-        }).join('');
-      };
-      xhr.send();
-    }
-
-    function ladeKasse() {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/api/einstellungen', true);
+      xhr.open('POST', '/api/admin/perioden', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
         try {
           var data = JSON.parse(xhr.responseText);
-          var geschlossen = data.kasse_geschlossen;
-          var statusEl = document.getElementById('kasseStatusText');
-          var btn = document.getElementById('btnToggleKasse');
-          if (geschlossen) {
-            statusEl.textContent = '🔒 Geschlossen';
-            statusEl.style.color = '#991b1b';
-            btn.textContent = 'Kasse öffnen';
-            btn.className = 'btn-open';
-          } else {
-            statusEl.textContent = '🟢 Geöffnet';
-            statusEl.style.color = '#065f46';
-            btn.textContent = 'Kasse schließen';
-            btn.className = 'btn-close';
-          }
-          btn.onclick = function() { toggleKasse(geschlossen); };
-        } catch(e) {}
+          if (xhr.status !== 201) { err.textContent = data.error || 'Fehler'; err.classList.remove('hidden'); return; }
+          document.getElementById('neuPeriodeName').value = '';
+          document.getElementById('neuPeriodeVon').value = '';
+          document.getElementById('neuPeriodeBis').value = '';
+          ladePerioden();
+        } catch(e) { err.textContent = 'Fehler'; err.classList.remove('hidden'); }
       };
-      xhr.send();
-    }
+      xhr.send(JSON.stringify({ name: name, von: von, bis: bis }));
+    });
 
     function ladePerioden() {
       var xhr = new XMLHttpRequest();
@@ -584,7 +543,6 @@
           var aktiveId = data.aktive_periode_id;
           var infoBox = document.getElementById('aktivePeriodeInfo');
           var infoText = document.getElementById('aktivePeriodeText');
-
           if (aktiveId > 0) {
             var aktive = data.perioden.find(function(p) { return p.id === aktiveId; });
             if (aktive) {
@@ -598,7 +556,6 @@
           } else {
             infoBox.style.display = 'none';
           }
-
           document.getElementById('periodenTableBody').innerHTML = data.perioden.map(function(p) {
             var istAktiv = p.id === aktiveId;
             var s = p.stats || {};
@@ -610,78 +567,81 @@
               '<td>' + fmtCHF(s.summe_chf || 0) + '</td>' +
               '<td><span class="badge ' + (istAktiv ? 'badge-aktiv' : 'badge-inaktiv') + '">' + (istAktiv ? '✓ Aktiv' : 'Inaktiv') + '</span></td>' +
               '<td style="white-space:nowrap;display:flex;gap:6px;">' +
-                (!istAktiv ? '<button class="btn-activate" onclick="aktivierePeriode(' + p.id + ')">Aktivieren</button>' :
-                  '<button class="btn-deactivate" onclick="deaktivierePeriode()">Beenden</button>') +
+                (!istAktiv
+                  ? '<button class="btn-activate" onclick="aktivierePeriode(' + p.id + ')">Aktivieren</button>'
+                  : '<button class="btn-deactivate" onclick="deaktivierePeriode()">Beenden</button>') +
                 '<button class="btn-sm btn-danger" onclick="loeschePeriode(' + p.id + ')">Löschen</button>' +
-              '</td>' +
-            '</tr>';
+              '</td></tr>';
           }).join('') || '<tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:20px;">Noch keine Perioden angelegt</td></tr>';
         } catch(e) {}
       };
       xhr.send();
     }
 
-    function loescheBeleg(id) {
-      if (!confirm('Beleg wirklich löschen?')) return;
+    function aktivierePeriode(id) {
       var xhr = new XMLHttpRequest();
-      xhr.open('DELETE', '/api/belege/' + id, true);
+      xhr.open('PUT', '/api/admin/perioden/' + id + '/aktivieren', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() { if (xhr.readyState === 4 && xhr.status === 200) { ladePerioden(); ladeKasse(); } };
+      xhr.send();
+    }
+
+    function deaktivierePeriode() {
+      if (!confirm('Periode beenden? Die Kasse wird automatisch geschlossen.')) return;
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', '/api/admin/perioden/aktiv', true);
+      xhr.onreadystatechange = function() { if (xhr.readyState === 4 && xhr.status === 200) { ladePerioden(); ladeKasse(); } };
+      xhr.send();
+    }
+
+    function loeschePeriode(id) {
+      if (!confirm('Periode löschen? Falls aktiv, wird die Kasse geschlossen.')) return;
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', '/api/admin/perioden/' + id, true);
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        if (xhr.status === 200) { ladeBelege(); ladeStats(); }
-        else { alert('Fehler beim Löschen'); }
+        if (xhr.status === 200) { ladePerioden(); ladeKasse(); }
+        else alert('Fehler beim Löschen');
       };
       xhr.send();
     }
 
-    function toggleStatus(id, currentStatus) {
-      var neuerStatus = currentStatus === 'eingetragen' ? 'ausstehend' : 'eingetragen';
+    // ===== Profil =====
+    document.getElementById('btnSpeichernProfil').addEventListener('click', function() {
+      var btn = this;
+      var err = document.getElementById('profilError');
+      var succ = document.getElementById('profilSuccess');
+      err.classList.add('hidden'); succ.style.display = 'none';
+      var name = document.getElementById('profilName').value.trim();
+      var passNeu = document.getElementById('profilPasswortNeu').value;
+      var passAkt = document.getElementById('profilPasswortAktuell').value;
+      if (!passAkt) { err.textContent = 'Bitte aktuelles Passwort eingeben'; err.classList.remove('hidden'); return; }
+      if (!name && !passNeu) { err.textContent = 'Bitte neuen Namen oder neues Passwort angeben'; err.classList.remove('hidden'); return; }
+      btn.disabled = true; btn.textContent = 'Speichern...';
       var xhr = new XMLHttpRequest();
-      xhr.open('PUT', '/api/admin/belege/' + id + '/status', true);
+      xhr.open('PUT', '/api/admin/profil', true);
       xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        if (xhr.status === 200) ladeBelege();
-      };
-      xhr.send(JSON.stringify({ status: neuerStatus }));
-    }
-
-    function ladeStats() {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/api/admin/statistiken', true);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
+        btn.disabled = false; btn.textContent = 'Speichern';
         try {
           var data = JSON.parse(xhr.responseText);
-          document.getElementById('statBelege').textContent = data.gesamt.anzahl || 0;
-          document.getElementById('statBetragEUR').textContent = fmtEUR(data.gesamt.summe_eur || 0);
-          document.getElementById('statBetragCHF').textContent = fmtCHF(data.gesamt.summe_chf || 0);
-        } catch(e) {}
+          if (xhr.status !== 200) { err.textContent = data.error || 'Fehler'; err.classList.remove('hidden'); return; }
+          document.getElementById('profilName').value = '';
+          document.getElementById('profilPasswortNeu').value = '';
+          document.getElementById('profilPasswortAktuell').value = '';
+          succ.style.display = 'block';
+          setTimeout(function() { succ.style.display = 'none'; }, 4000);
+        } catch(e) { err.textContent = 'Fehler'; err.classList.remove('hidden'); }
       };
-      xhr.send();
-    }
+      xhr.send(JSON.stringify({ benutzername: name || undefined, passwortNeu: passNeu || undefined, passwortAktuell: passAkt }));
+    });
 
-    function loescheBenutzer(id) {
-      if (!confirm('Benutzer wirklich löschen?')) return;
-      var xhr = new XMLHttpRequest();
-      xhr.open('DELETE', '/api/admin/benutzer/' + id, true);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
-        try {
-          var data = JSON.parse(xhr.responseText);
-          if (xhr.status !== 200) { alert(data.error); return; }
-          ladeBenutzer();
-        } catch(e) {}
-      };
-      xhr.send();
-    }
-
-    function fmt(n, w) {
-      var c = w === 'CHF' ? 'CHF' : 'EUR';
-      return new Intl.NumberFormat('de-CH',{style:'currency',currency:c}).format(n || 0);
-    }
-    function fmtEUR(n) { return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n || 0); }
-    function fmtCHF(n) { return new Intl.NumberFormat('de-CH',{style:'currency',currency:'CHF'}).format(n || 0); }
-    function fmtDatum(d) { return d ? new Date(d + 'T00:00:00').toLocaleDateString('de-DE') : '–'; }
+    // ===== Helpers =====
+    function fmt(n, w) { return new Intl.NumberFormat('de-CH',{style:'currency',currency:w==='CHF'?'CHF':'EUR'}).format(n||0); }
+    function fmtEUR(n) { return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n||0); }
+    function fmtCHF(n) { return new Intl.NumberFormat('de-CH',{style:'currency',currency:'CHF'}).format(n||0); }
+    function fmtDatum(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('de-DE') : '–'; }
     function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   </script>
 </body>
