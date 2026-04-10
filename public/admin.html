@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin – Belegverwaltung</title>
+  <link rel="stylesheet" href="login.css">
+  <style>
+    body { background: linear-gradient(135deg, #1f2937 0%, #374151 100%); align-items: flex-start; padding: 32px 24px; }
+    .admin-wrapper { width: 100%; max-width: 720px; margin: 0 auto; }
+    .admin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .admin-header h1 { color: white; font-size: 22px; font-weight: 700; }
+    .admin-header a { color: rgba(255,255,255,.7); font-size: 13px; text-decoration: none; }
+    .admin-header a:hover { color: white; }
+    .card { background: white; border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+    .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #111827; display: flex; align-items: center; gap: 8px; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0; }
+    .stat-box { background: #f9fafb; border-radius: 10px; padding: 16px; }
+    .stat-box .label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .stat-box .value { font-size: 22px; font-weight: 700; color: #4f46e5; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #9ca3af; letter-spacing: .5px; border-bottom: 2px solid #f3f4f6; }
+    td { padding: 10px; border-bottom: 1px solid #f9fafb; color: #374151; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .badge-admin { background: #ede9fe; color: #5b21b6; }
+    .badge-user { background: #f3f4f6; color: #6b7280; }
+    .btn-sm { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-danger { background: #fee2e2; color: #991b1b; }
+    .btn-danger:hover { background: #fecaca; }
+    .add-user-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 20px; }
+    .add-user-form .form-group { margin-bottom: 0; }
+    .btn-add { padding: 10px 18px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-add:hover { background: #3730a3; }
+    .login-section { display: none; }
+    .login-section.active { display: block; }
+    .main-section { display: none; }
+    .main-section.active { display: block; }
+    .back-link { display: inline-block; margin-bottom: 16px; color: rgba(255,255,255,.7); text-decoration: none; font-size: 13px; }
+    .back-link:hover { color: white; }
+    @media(max-width:600px) { .add-user-form { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <!-- Login Section -->
+  <div class="admin-wrapper">
+    <div id="loginSection" class="login-section active">
+      <a href="/login.html" class="back-link">← Zurück zur Anmeldung</a>
+      <div class="login-card">
+        <div class="login-logo">
+          <span>⚙️</span>
+          <h1>Admin-Bereich</h1>
+          <p>Nur für Administratoren</p>
+        </div>
+        <form id="adminLoginForm">
+          <div class="form-group">
+            <label for="adminUser">Benutzername</label>
+            <input type="text" id="adminUser" class="input-field" placeholder="Admin-Benutzername" required>
+          </div>
+          <div class="form-group">
+            <label for="adminPass">Passwort</label>
+            <input type="password" id="adminPass" class="input-field" placeholder="Admin-Passwort" required>
+          </div>
+          <div class="error-msg hidden" id="adminError"></div>
+          <button type="submit" class="btn-login" id="btnAdminLogin">Anmelden</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main Admin Section -->
+    <div id="mainSection" class="main-section">
+      <div class="admin-header">
+        <h1>⚙️ Admin-Bereich</h1>
+        <div style="display:flex;gap:12px;align-items:center">
+          <a href="/">Zur App →</a>
+          <a href="#" id="btnAdminLogout" style="color:#ef4444">Abmelden</a>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="card">
+        <h2>📊 Übersicht</h2>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="label">Belege gesamt</div><div class="value" id="statBelege">–</div></div>
+          <div class="stat-box"><div class="label">Gesamtbetrag</div><div class="value" id="statBetrag">–</div></div>
+        </div>
+      </div>
+
+      <!-- User Management -->
+      <div class="card">
+        <h2>👥 Benutzerverwaltung</h2>
+        <div class="add-user-form">
+          <div class="form-group">
+            <label>Benutzername</label>
+            <input type="text" id="neuBenutzername" class="input-field" placeholder="Benutzername">
+          </div>
+          <div class="form-group">
+            <label>Passwort</label>
+            <input type="password" id="neuPasswort" class="input-field" placeholder="Passwort">
+          </div>
+          <div class="form-group">
+            <label>Rolle</label>
+            <select id="neuRolle" class="input-field">
+              <option value="benutzer">Benutzer</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="btn-add" id="btnAddUser">+ Hinzufügen</button>
+        </div>
+        <div id="userError" class="error-msg hidden"></div>
+        <table>
+          <thead>
+            <tr><th>Benutzername</th><th>Rolle</th><th>Erstellt</th><th>Belege</th><th></th></tr>
+          </thead>
+          <tbody id="userTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- All Receipts -->
+      <div class="card">
+        <h2>🧾 Alle Belege</h2>
+        <table>
+          <thead>
+            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Kategorie</th></tr>
+          </thead>
+          <tbody id="belegeTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Check if already logged in as admin
+    fetch('/api/ich').then(r => r.json()).then(user => {
+      if (user.rolle === 'admin') showAdminPanel();
+    }).catch(() => {});
+
+    document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btnAdminLogin');
+      const err = document.getElementById('adminError');
+      err.classList.add('hidden');
+      btn.disabled = true;
+      btn.textContent = 'Anmelden...';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            benutzername: document.getElementById('adminUser').value,
+            passwort: document.getElementById('adminPass').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        if (data.rolle !== 'admin') throw new Error('Kein Admin-Konto');
+        showAdminPanel();
+      } catch (e) {
+        err.textContent = e.message;
+        err.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Anmelden';
+      }
+    });
+
+    document.getElementById('btnAdminLogout').addEventListener('click', async (e) => {
+      e.preventDefault();
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = '/login.html';
+    });
+
+    document.getElementById('btnAddUser').addEventListener('click', async () => {
+      const err = document.getElementById('userError');
+      err.classList.add('hidden');
+      try {
+        const res = await fetch('/api/admin/benutzer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            benutzername: document.getElementById('neuBenutzername').value,
+            passwort: document.getElementById('neuPasswort').value,
+            rolle: document.getElementById('neuRolle').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        document.getElementById('neuBenutzername').value = '';
+        document.getElementById('neuPasswort').value = '';
+        ladeBenutzer();
+      } catch (e) {
+        err.textContent = e.message;
+        err.classList.remove('hidden');
+      }
+    });
+
+    async function showAdminPanel() {
+      document.getElementById('loginSection').classList.remove('active');
+      document.getElementById('mainSection').classList.add('active');
+      await Promise.all([ladeBenutzer(), ladeBelege(), ladeStats()]);
+    }
+
+    async function ladeBenutzer() {
+      const res = await fetch('/api/admin/benutzer');
+      const users = await res.json();
+      // Get receipt counts
+      const belegeRes = await fetch('/api/admin/statistiken');
+      const stats = await belegeRes.json();
+      const countMap = {};
+      stats.nachBenutzer.forEach(u => { countMap[u.benutzername] = u.anzahl || 0; });
+
+      document.getElementById('userTableBody').innerHTML = users.map(u => `
+        <tr>
+          <td><strong>${esc(u.benutzername)}</strong></td>
+          <td><span class="badge badge-${u.rolle === 'admin' ? 'admin' : 'user'}">${u.rolle}</span></td>
+          <td>${new Date(u.erstellt_am).toLocaleDateString('de-DE')}</td>
+          <td>${countMap[u.benutzername] || 0}</td>
+          <td><button class="btn-sm btn-danger" onclick="loescheBenutzer(${u.id})">Löschen</button></td>
+        </tr>`).join('');
+    }
+
+    async function ladeBelege() {
+      const res = await fetch('/api/admin/belege');
+      const belege = await res.json();
+      document.getElementById('belegeTableBody').innerHTML = belege.map(b => `
+        <tr>
+          <td>${new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE')}</td>
+          <td>${esc(b.benutzername)}</td>
+          <td>${esc(b.geschaeft)}</td>
+          <td><strong>${fmt(b.betrag)}</strong></td>
+          <td>${esc(b.kategorie)}</td>
+        </tr>`).join('');
+    }
+
+    async function ladeStats() {
+      const res = await fetch('/api/admin/statistiken');
+      const data = await res.json();
+      document.getElementById('statBelege').textContent = data.gesamt.anzahl;
+      document.getElementById('statBetrag').textContent = fmt(data.gesamt.summe || 0);
+    }
+
+    async function loescheBenutzer(id) {
+      if (!confirm('Benutzer wirklich löschen?')) return;
+      const res = await fetch(`/api/admin/benutzer/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error); return; }
+      ladeBenutzer();
+    }
+
+    function fmt(n) { return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n); }
+    function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  </script>
+</body>
+</html>

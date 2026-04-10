@@ -60,6 +60,18 @@ header {
   color: var(--primary);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-user {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 /* ===== Buttons ===== */
 .btn {
   padding: 10px 20px;

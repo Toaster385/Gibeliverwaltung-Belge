@@ -9,7 +9,17 @@ const filterVon = document.getElementById('filterVon');
 const filterBis = document.getElementById('filterBis');
 
 // ===== Init =====
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Check login
+  try {
+    const res = await fetch('/api/ich');
+    if (!res.ok) { window.location.href = '/login.html'; return; }
+    const user = await res.json();
+    document.getElementById('headerUser').textContent = '👤 ' + user.benutzername;
+  } catch (e) {
+    window.location.href = '/login.html';
+    return;
+  }
   ladeBelege();
   ladeStatistiken();
   setupEventListeners();
@@ -18,6 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // ===== Event Listeners =====
 function setupEventListeners() {
   document.getElementById('btnNeuBeleg').addEventListener('click', () => oeffneModal());
+  document.getElementById('btnLogout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  });
   document.getElementById('modalClose').addEventListener('click', schliesseModal);
   document.getElementById('btnAbbrechen').addEventListener('click', schliesseModal);
   document.getElementById('modalOverlay').addEventListener('click', (e) => {

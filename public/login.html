@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anmelden – Belegverwaltung</title>
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-logo">
+        <span>🧾</span>
+        <h1>Belegverwaltung</h1>
+        <p>Bitte melde dich an</p>
+      </div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="benutzername">Benutzername</label>
+          <input type="text" id="benutzername" class="input-field" placeholder="Benutzername" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label for="passwort">Passwort</label>
+          <input type="password" id="passwort" class="input-field" placeholder="Passwort" autocomplete="current-password" required>
+        </div>
+
+        <div class="error-msg hidden" id="errorMsg"></div>
+
+        <button type="submit" class="btn-login" id="btnLogin">Anmelden</button>
+      </form>
+
+      <div class="admin-link">
+        <a href="admin.html" class="btn-admin">⚙ Admin-Bereich</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btnLogin');
+      const errorMsg = document.getElementById('errorMsg');
+      errorMsg.classList.add('hidden');
+      btn.disabled = true;
+      btn.textContent = 'Anmelden...';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            benutzername: document.getElementById('benutzername').value,
+            passwort: document.getElementById('passwort').value
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Fehler beim Anmelden');
+
+        if (data.rolle === 'admin') {
+          window.location.href = '/admin.html';
+        } else {
+          window.location.href = '/';
+        }
+      } catch (err) {
+        errorMsg.textContent = err.message;
+        errorMsg.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Anmelden';
+      }
+    });
+  </script>
+</body>
+</html>
