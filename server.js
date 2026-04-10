@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.set('trust proxy', 1);
 
 // Ensure directories exist
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -80,11 +81,7 @@ app.get('/login.html', (req, res) => res.sendFile(path.join(__dirname, 'public',
 app.get('/login.css', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.css')));
 app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
-// Protected static files
-app.use(requireLogin, express.static(path.join(__dirname, 'public')));
-app.use('/uploads', requireLogin, express.static(uploadsDir));
-
-// ===== AUTH ROUTES =====
+// ===== AUTH ROUTES (public – must be before requireLogin middleware) =====
 app.post('/api/login', (req, res) => {
   const { benutzername, passwort, geburtsdatum } = req.body;
   if (!benutzername) return res.status(400).json({ error: 'Benutzername erforderlich' });
@@ -112,6 +109,10 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/ich', requireLogin, (req, res) => {
   res.json(req.session.benutzer);
 });
+
+// Protected static files (after public API routes)
+app.use(requireLogin, express.static(path.join(__dirname, 'public')));
+app.use('/uploads', requireLogin, express.static(uploadsDir));
 
 // ===== ADMIN ROUTES =====
 app.get('/api/admin/benutzer', requireAdmin, (req, res) => {
