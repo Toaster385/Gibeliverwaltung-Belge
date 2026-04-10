@@ -52,17 +52,17 @@
           <h1>Admin-Bereich</h1>
           <p>Nur für Administratoren</p>
         </div>
-        <form id="adminLoginForm">
+        <form id="adminLoginForm" novalidate>
           <div class="form-group">
             <label for="adminUser">Benutzername</label>
-            <input type="text" id="adminUser" class="input-field" placeholder="Admin-Benutzername" required>
+            <input type="text" id="adminUser" class="input-field" placeholder="Admin-Benutzername" autocomplete="off">
           </div>
           <div class="form-group">
             <label for="adminPass">Passwort</label>
-            <input type="password" id="adminPass" class="input-field" placeholder="Admin-Passwort" required>
+            <input type="password" id="adminPass" class="input-field" placeholder="Admin-Passwort" autocomplete="off">
           </div>
           <div class="error-msg hidden" id="adminError"></div>
-          <button type="submit" class="btn-login" id="btnAdminLogin">Anmelden</button>
+          <button type="button" class="btn-login" id="btnAdminLogin">Anmelden</button>
         </form>
       </div>
     </div>
@@ -131,38 +131,62 @@
 
   <script>
     // Check if already logged in as admin
-    fetch('/api/ich').then(r => r.json()).then(user => {
-      if (user.rolle === 'admin') showAdminPanel();
-    }).catch(() => {});
+    fetch('/api/ich').then(function(r) {
+      if (r.ok) return r.json();
+    }).then(function(user) {
+      if (user && user.rolle === 'admin') showAdminPanel();
+    }).catch(function() {});
 
-    document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('btnAdminLogin');
-      const err = document.getElementById('adminError');
+    document.getElementById('btnAdminLogin').addEventListener('click', function() {
+      adminLogin();
+    });
+    document.getElementById('adminPass').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') adminLogin();
+    });
+
+    function adminLogin() {
+      var btn = document.getElementById('btnAdminLogin');
+      var err = document.getElementById('adminError');
+      var benutzername = document.getElementById('adminUser').value.trim();
+      var passwort = document.getElementById('adminPass').value;
       err.classList.add('hidden');
+
+      if (!benutzername || !passwort) {
+        err.textContent = 'Bitte Benutzername und Passwort eingeben';
+        err.classList.remove('hidden');
+        return;
+      }
+
       btn.disabled = true;
       btn.textContent = 'Anmelden...';
 
-      try {
-        const res = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            benutzername: document.getElementById('adminUser').value,
-            passwort: document.getElementById('adminPass').value
-          })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        if (data.rolle !== 'admin') throw new Error('Kein Admin-Konto');
-        showAdminPanel();
-      } catch (e) {
-        err.textContent = e.message;
-        err.classList.remove('hidden');
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/login', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
         btn.disabled = false;
         btn.textContent = 'Anmelden';
-      }
-    });
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (xhr.status !== 200) {
+            err.textContent = data.error || 'Anmeldung fehlgeschlagen';
+            err.classList.remove('hidden');
+            return;
+          }
+          if (data.rolle !== 'admin') {
+            err.textContent = 'Kein Admin-Konto';
+            err.classList.remove('hidden');
+            return;
+          }
+          showAdminPanel();
+        } catch(e) {
+          err.textContent = 'Fehler beim Anmelden';
+          err.classList.remove('hidden');
+        }
+      };
+      xhr.send(JSON.stringify({ benutzername: benutzername, passwort: passwort }));
+    }
 
     document.getElementById('btnAdminLogout').addEventListener('click', async (e) => {
       e.preventDefault();
