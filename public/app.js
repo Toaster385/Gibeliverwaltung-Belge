@@ -247,6 +247,40 @@ function aktualisiereStatistikAnzeige() {
   if (kursEl) kursEl.textContent = (gChf > 0 && gEur > 0) ? kursText : '';
 }
 
+// ===== Image Compression =====
+function komprimieresBild(file, callback) {
+  if (!file.type.startsWith('image/') || file.size < 400 * 1024) {
+    callback(file, false);
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var maxDim = 1600;
+      var w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(function(blob) {
+        if (!blob || blob.size >= file.size) { callback(file, false); return; }
+        var nameBase = file.name.replace(/\.[^.]+$/, '');
+        var compressed = new File([blob], nameBase + '.jpg', { type: 'image/jpeg' });
+        callback(compressed, true);
+      }, 'image/jpeg', 0.82);
+    };
+    img.onerror = function() { callback(file, false); };
+    img.src = e.target.result;
+  };
+  reader.onerror = function() { callback(file, false); };
+  reader.readAsDataURL(file);
+}
+
 function speichereBeleg(e) {
   if (e) e.preventDefault();
   var id = document.getElementById('belegId').value;
@@ -274,42 +308,55 @@ function speichereBeleg(e) {
     return;
   }
 
+  var btn = document.getElementById('btnSpeichern');
+  btn.disabled = true;
+
   var formData = new FormData();
   formData.append('datum', datum);
   formData.append('geschaeft', document.getElementById('feldGeschaeft').value);
   formData.append('betrag', betrag);
   formData.append('notiz', document.getElementById('feldNotiz').value);
   formData.append('waehrung', document.getElementById('feldWaehrung').value);
-  if (dateiFile) formData.append('datei', dateiFile);
   if (deleteFileFlag) formData.append('deleteFile', 'true');
 
-  var btn = document.getElementById('btnSpeichern');
-  btn.disabled = true;
-  btn.textContent = 'Speichern...';
-
-  var xhr = new XMLHttpRequest();
-  var url = id ? '/api/belege/' + id : '/api/belege';
-  var method = id ? 'PUT' : 'POST';
-  xhr.open(method, url, true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    btn.disabled = false;
-    btn.textContent = 'Speichern';
-    try {
-      var data = JSON.parse(xhr.responseText);
-      if (xhr.status !== 200 && xhr.status !== 201) {
-        zeigeToast(data.error || 'Fehler beim Speichern', 'error');
-        return;
+  function senden(fileToSend) {
+    if (fileToSend) formData.append('datei', fileToSend);
+    btn.textContent = 'Wird hochgeladen...';
+    var xhr = new XMLHttpRequest();
+    var url = id ? '/api/belege/' + id : '/api/belege';
+    xhr.open(id ? 'PUT' : 'POST', url, true);
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      btn.disabled = false;
+      btn.textContent = 'Speichern';
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (xhr.status !== 200 && xhr.status !== 201) {
+          zeigeToast(data.error || 'Fehler beim Speichern', 'error');
+          return;
+        }
+        schliesseModal();
+        ladeBelege();
+        ladeStatistiken();
+        zeigeToast(id ? 'Beleg aktualisiert' : 'Beleg gespeichert', 'success');
+      } catch(e) {
+        zeigeToast('Fehler beim Speichern', 'error');
       }
-      schliesseModal();
-      ladeBelege();
-      ladeStatistiken();
-      zeigeToast(id ? 'Beleg aktualisiert' : 'Beleg gespeichert', 'success');
-    } catch(e) {
-      zeigeToast('Fehler beim Speichern', 'error');
-    }
-  };
-  xhr.send(formData);
+    };
+    xhr.send(formData);
+  }
+
+  if (dateiFile && dateiFile.type.startsWith('image/') && dateiFile.size > 400 * 1024) {
+    btn.textContent = 'Bild wird komprimiert...';
+    komprimieresBild(dateiFile, function(compressed, wurdeKomprimiert) {
+      if (wurdeKomprimiert) {
+        zeigeToast('Bild komprimiert: ' + Math.round(compressed.size / 1024) + ' KB', '');
+      }
+      senden(compressed);
+    });
+  } else {
+    senden(dateiFile || null);
+  }
 }
 
 function loescheBeleg(id) {

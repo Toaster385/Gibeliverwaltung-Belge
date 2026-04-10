@@ -281,7 +281,17 @@ app.post('/api/admin/kasse', requireAdmin, (req, res) => {
 app.get('/api/admin/perioden', requireAdmin, (req, res) => {
   const perioden = db.prepare('SELECT * FROM perioden ORDER BY von DESC').all();
   const aktive = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='aktive_periode'`).get();
-  res.json({ perioden, aktive_periode_id: parseInt(aktive?.wert || '0') });
+  const aktiveId = parseInt(aktive?.wert || '0');
+  const periodenMitStats = perioden.map(p => {
+    const stats = db.prepare(`
+      SELECT COUNT(*) as anzahl,
+             SUM(CASE WHEN waehrung='EUR' THEN betrag ELSE 0 END) as summe_eur,
+             SUM(CASE WHEN waehrung='CHF' THEN betrag ELSE 0 END) as summe_chf
+      FROM belege WHERE datum >= ? AND datum <= ?
+    `).get(p.von, p.bis);
+    return Object.assign({}, p, { stats });
+  });
+  res.json({ perioden: periodenMitStats, aktive_periode_id: aktiveId });
 });
 
 app.post('/api/admin/perioden', requireAdmin, (req, res) => {
@@ -298,11 +308,13 @@ app.put('/api/admin/perioden/:id/aktivieren', requireAdmin, (req, res) => {
   const periode = db.prepare('SELECT * FROM perioden WHERE id = ?').get(req.params.id);
   if (!periode) return res.status(404).json({ error: 'Periode nicht gefunden' });
   db.prepare(`UPDATE einstellungen SET wert = ? WHERE schluessel = 'aktive_periode'`).run(String(req.params.id));
+  db.prepare(`UPDATE einstellungen SET wert = '0' WHERE schluessel = 'kasse_geschlossen'`).run();
   res.json({ success: true, aktive_periode: periode });
 });
 
 app.delete('/api/admin/perioden/aktiv', requireAdmin, (req, res) => {
   db.prepare(`UPDATE einstellungen SET wert = '0' WHERE schluessel = 'aktive_periode'`).run();
+  db.prepare(`UPDATE einstellungen SET wert = '1' WHERE schluessel = 'kasse_geschlossen'`).run();
   res.json({ success: true });
 });
 
@@ -312,8 +324,35 @@ app.delete('/api/admin/perioden/:id', requireAdmin, (req, res) => {
   const aktive = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='aktive_periode'`).get();
   if (aktive?.wert === String(req.params.id)) {
     db.prepare(`UPDATE einstellungen SET wert = '0' WHERE schluessel = 'aktive_periode'`).run();
+    db.prepare(`UPDATE einstellungen SET wert = '1' WHERE schluessel = 'kasse_geschlossen'`).run();
   }
   db.prepare('DELETE FROM perioden WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ===== ADMIN: PROFIL =====
+app.put('/api/admin/profil', requireAdmin, (req, res) => {
+  const { benutzername, passwortAktuell, passwortNeu } = req.body;
+  const userId = req.session.benutzer.id;
+  const dbUser = db.prepare('SELECT * FROM benutzer WHERE id = ?').get(userId);
+  if (!dbUser) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+  if (!passwortAktuell || !bcrypt.compareSync(passwortAktuell, dbUser.passwort))
+    return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
+  const updates = [], params = [];
+  if (benutzername && benutzername.trim() && benutzername.trim() !== dbUser.benutzername) {
+    const exists = db.prepare('SELECT id FROM benutzer WHERE benutzername = ? AND id != ?').get(benutzername.trim(), userId);
+    if (exists) return res.status(400).json({ error: 'Benutzername bereits vergeben' });
+    updates.push('benutzername = ?'); params.push(benutzername.trim());
+  }
+  if (passwortNeu && passwortNeu.length >= 4) {
+    updates.push('passwort = ?'); params.push(bcrypt.hashSync(passwortNeu, 10));
+  }
+  if (updates.length === 0)
+    return res.status(400).json({ error: 'Bitte neuen Namen oder neues Passwort angeben' });
+  params.push(userId);
+  db.prepare(`UPDATE benutzer SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  if (benutzername && benutzername.trim() !== dbUser.benutzername)
+    req.session.benutzer.benutzername = benutzername.trim();
   res.json({ success: true });
 });
 

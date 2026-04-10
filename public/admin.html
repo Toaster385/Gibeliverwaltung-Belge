@@ -132,9 +132,10 @@
       <!-- Perioden -->
       <div class="card">
         <h2>📅 Perioden</h2>
+        <p style="font-size:12px;color:#6b7280;margin-bottom:14px;">Eine Periode entspricht einem Abrechnungszeitraum (z.B. ein Jahr). Wenn eine Periode aktiviert wird, öffnet die Kasse automatisch. Beim Deaktivieren schließt sie wieder.</p>
         <div id="aktivePeriodeInfo" class="aktive-periode-box" style="display:none;">
           <span id="aktivePeriodeText"></span>
-          <button class="btn-deactivate" onclick="deaktivierePeriode()">Deaktivieren</button>
+          <button class="btn-deactivate" onclick="deaktivierePeriode()">Periode beenden & Kasse schließen</button>
         </div>
         <div class="periode-form">
           <div class="form-group">
@@ -154,10 +155,32 @@
         <div id="periodeError" class="error-msg hidden"></div>
         <table>
           <thead>
-            <tr><th>Name</th><th>Von</th><th>Bis</th><th>Status</th><th></th></tr>
+            <tr><th>Name</th><th>Zeitraum</th><th>Belege</th><th>EUR</th><th>CHF</th><th>Status</th><th></th></tr>
           </thead>
           <tbody id="periodenTableBody"></tbody>
         </table>
+      </div>
+
+      <!-- Profil -->
+      <div class="card">
+        <h2>👤 Mein Profil ändern</h2>
+        <div style="display:grid;gap:12px;max-width:400px;">
+          <div class="form-group">
+            <label>Neuer Benutzername <span style="color:#9ca3af;font-weight:400">(leer lassen = unverändert)</span></label>
+            <input type="text" id="profilName" class="input-field" placeholder="Neuer Name">
+          </div>
+          <div class="form-group">
+            <label>Neues Passwort <span style="color:#9ca3af;font-weight:400">(leer lassen = unverändert)</span></label>
+            <input type="password" id="profilPasswortNeu" class="input-field" placeholder="Neues Passwort (min. 4 Zeichen)">
+          </div>
+          <div class="form-group">
+            <label>Aktuelles Passwort <span style="color:#ef4444">*</span></label>
+            <input type="password" id="profilPasswortAktuell" class="input-field" placeholder="Zur Bestätigung erforderlich">
+          </div>
+          <div id="profilError" class="error-msg hidden"></div>
+          <div id="profilSuccess" style="background:#d1fae5;color:#065f46;padding:10px 14px;border-radius:8px;font-size:13px;display:none;">✓ Profil erfolgreich aktualisiert!</div>
+          <button class="btn-add" id="btnSpeichernProfil">Speichern</button>
+        </div>
       </div>
 
       <!-- User Management -->
@@ -357,28 +380,77 @@
       xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        if (xhr.status === 200) ladePerioden();
+        if (xhr.status === 200) { ladePerioden(); ladeKasse(); }
       };
       xhr.send();
     }
 
     function deaktivierePeriode() {
+      if (!confirm('Periode beenden? Die Kasse wird automatisch geschlossen.')) return;
       var xhr = new XMLHttpRequest();
       xhr.open('DELETE', '/api/admin/perioden/aktiv', true);
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        if (xhr.status === 200) ladePerioden();
+        if (xhr.status === 200) { ladePerioden(); ladeKasse(); }
       };
       xhr.send();
     }
 
+    document.getElementById('btnSpeichernProfil').addEventListener('click', function() {
+      var btn = this;
+      var err = document.getElementById('profilError');
+      var succ = document.getElementById('profilSuccess');
+      err.classList.add('hidden');
+      succ.style.display = 'none';
+      var name = document.getElementById('profilName').value.trim();
+      var passNeu = document.getElementById('profilPasswortNeu').value;
+      var passAkt = document.getElementById('profilPasswortAktuell').value;
+      if (!passAkt) {
+        err.textContent = 'Bitte aktuelles Passwort eingeben';
+        err.classList.remove('hidden');
+        return;
+      }
+      if (!name && !passNeu) {
+        err.textContent = 'Bitte neuen Namen oder neues Passwort angeben';
+        err.classList.remove('hidden');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Speichern...';
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', '/api/admin/profil', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        btn.disabled = false;
+        btn.textContent = 'Speichern';
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (xhr.status !== 200) {
+            err.textContent = data.error || 'Fehler';
+            err.classList.remove('hidden');
+            return;
+          }
+          document.getElementById('profilName').value = '';
+          document.getElementById('profilPasswortNeu').value = '';
+          document.getElementById('profilPasswortAktuell').value = '';
+          succ.style.display = 'block';
+          setTimeout(function() { succ.style.display = 'none'; }, 4000);
+        } catch(e) {
+          err.textContent = 'Fehler beim Speichern';
+          err.classList.remove('hidden');
+        }
+      };
+      xhr.send(JSON.stringify({ benutzername: name || undefined, passwortNeu: passNeu || undefined, passwortAktuell: passAkt }));
+    });
+
     function loeschePeriode(id) {
-      if (!confirm('Periode wirklich löschen?')) return;
+      if (!confirm('Periode wirklich löschen? Falls dies die aktive Periode ist, wird die Kasse geschlossen.')) return;
       var xhr = new XMLHttpRequest();
       xhr.open('DELETE', '/api/admin/perioden/' + id, true);
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
-        if (xhr.status === 200) ladePerioden();
+        if (xhr.status === 200) { ladePerioden(); ladeKasse(); }
         else alert('Fehler beim Löschen');
       };
       xhr.send();
@@ -516,7 +588,11 @@
           if (aktiveId > 0) {
             var aktive = data.perioden.find(function(p) { return p.id === aktiveId; });
             if (aktive) {
-              infoText.textContent = '📅 Aktive Periode: ' + esc(aktive.name) + ' (' + fmtDatum(aktive.von) + ' – ' + fmtDatum(aktive.bis) + ')';
+              infoText.textContent = '📅 Aktive Periode: ' + esc(aktive.name) +
+                ' (' + fmtDatum(aktive.von) + ' – ' + fmtDatum(aktive.bis) + ')' +
+                ' · ' + (aktive.stats.anzahl || 0) + ' Belege' +
+                ' · ' + fmtEUR(aktive.stats.summe_eur || 0) +
+                (aktive.stats.summe_chf > 0 ? ' + ' + fmtCHF(aktive.stats.summe_chf) : '');
               infoBox.style.display = 'flex';
             }
           } else {
@@ -525,18 +601,21 @@
 
           document.getElementById('periodenTableBody').innerHTML = data.perioden.map(function(p) {
             var istAktiv = p.id === aktiveId;
+            var s = p.stats || {};
             return '<tr>' +
               '<td><strong>' + esc(p.name) + '</strong></td>' +
-              '<td>' + fmtDatum(p.von) + '</td>' +
-              '<td>' + fmtDatum(p.bis) + '</td>' +
+              '<td style="white-space:nowrap">' + fmtDatum(p.von) + ' – ' + fmtDatum(p.bis) + '</td>' +
+              '<td>' + (s.anzahl || 0) + '</td>' +
+              '<td>' + fmtEUR(s.summe_eur || 0) + '</td>' +
+              '<td>' + fmtCHF(s.summe_chf || 0) + '</td>' +
               '<td><span class="badge ' + (istAktiv ? 'badge-aktiv' : 'badge-inaktiv') + '">' + (istAktiv ? '✓ Aktiv' : 'Inaktiv') + '</span></td>' +
               '<td style="white-space:nowrap;display:flex;gap:6px;">' +
                 (!istAktiv ? '<button class="btn-activate" onclick="aktivierePeriode(' + p.id + ')">Aktivieren</button>' :
-                  '<button class="btn-deactivate" onclick="deaktivierePeriode()">Deaktivieren</button>') +
+                  '<button class="btn-deactivate" onclick="deaktivierePeriode()">Beenden</button>') +
                 '<button class="btn-sm btn-danger" onclick="loeschePeriode(' + p.id + ')">Löschen</button>' +
               '</td>' +
             '</tr>';
-          }).join('') || '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;">Noch keine Perioden angelegt</td></tr>';
+          }).join('') || '<tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:20px;">Noch keine Perioden angelegt</td></tr>';
         } catch(e) {}
       };
       xhr.send();
