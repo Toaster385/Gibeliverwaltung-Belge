@@ -15,19 +15,19 @@
         <p>Bitte melde dich an</p>
       </div>
 
-      <form id="loginForm">
+      <form id="loginForm" novalidate>
         <div class="form-group">
           <label for="benutzername">Benutzername</label>
-          <input type="text" id="benutzername" class="input-field" placeholder="Benutzername" autocomplete="username" required>
+          <input type="text" id="benutzername" class="input-field" placeholder="Dein Name" autocomplete="off">
         </div>
         <div class="form-group">
-          <label for="passwort">Passwort</label>
-          <input type="password" id="passwort" class="input-field" placeholder="Passwort" autocomplete="current-password" required>
+          <label for="geburtsdatum">Geburtsdatum</label>
+          <input type="date" id="geburtsdatum" class="input-field">
         </div>
 
         <div class="error-msg hidden" id="errorMsg"></div>
 
-        <button type="submit" class="btn-login" id="btnLogin">Anmelden</button>
+        <button type="button" class="btn-login" id="btnLogin">Anmelden</button>
       </form>
 
       <div class="admin-link">
@@ -37,39 +37,50 @@
   </div>
 
   <script>
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('btnLogin');
-      const errorMsg = document.getElementById('errorMsg');
+    document.getElementById('btnLogin').addEventListener('click', doLogin);
+    document.getElementById('geburtsdatum').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    function doLogin() {
+      var btn = document.getElementById('btnLogin');
+      var errorMsg = document.getElementById('errorMsg');
+      var benutzername = document.getElementById('benutzername').value.trim();
+      var geburtsdatum = document.getElementById('geburtsdatum').value;
+
       errorMsg.classList.add('hidden');
+
+      if (!benutzername || !geburtsdatum) {
+        errorMsg.textContent = 'Bitte Benutzername und Geburtsdatum eingeben';
+        errorMsg.classList.remove('hidden');
+        return;
+      }
+
       btn.disabled = true;
       btn.textContent = 'Anmelden...';
 
-      try {
-        const res = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            benutzername: document.getElementById('benutzername').value,
-            passwort: document.getElementById('passwort').value
-          })
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Fehler beim Anmelden');
-
-        if (data.rolle === 'admin') {
-          window.location.href = '/admin.html';
-        } else {
-          window.location.href = '/';
-        }
-      } catch (err) {
-        errorMsg.textContent = err.message;
-        errorMsg.classList.remove('hidden');
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/login', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
         btn.disabled = false;
         btn.textContent = 'Anmelden';
-      }
-    });
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (xhr.status !== 200) {
+            errorMsg.textContent = data.error || 'Anmeldung fehlgeschlagen';
+            errorMsg.classList.remove('hidden');
+            return;
+          }
+          window.location.href = '/';
+        } catch(e) {
+          errorMsg.textContent = 'Fehler beim Anmelden';
+          errorMsg.classList.remove('hidden');
+        }
+      };
+      xhr.send(JSON.stringify({ benutzername: benutzername, geburtsdatum: geburtsdatum }));
+    }
   </script>
 </body>
 </html>

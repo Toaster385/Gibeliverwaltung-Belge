@@ -41,18 +41,15 @@ db.exec(`
   )
 `);
 
-// Migrate existing receipts: add benutzer_id column if missing
-try {
-  db.exec(`ALTER TABLE belege ADD COLUMN benutzer_id INTEGER NOT NULL DEFAULT 1`);
-} catch (e) { /* column already exists */ }
+// Migrations
+try { db.exec(`ALTER TABLE belege ADD COLUMN benutzer_id INTEGER NOT NULL DEFAULT 1`); } catch (e) {}
+try { db.exec(`ALTER TABLE benutzer ADD COLUMN geburtsdatum TEXT`); } catch (e) {}
 
-// Ensure all 3 default admins exist (runs every startup)
-for (const name of ['admin1', 'admin2', 'admin3']) {
-  if (!db.prepare('SELECT id FROM benutzer WHERE benutzername = ?').get(name)) {
-    const hash = bcrypt.hashSync('admin123', 10);
-    db.prepare("INSERT INTO benutzer (benutzername, passwort, rolle) VALUES (?, ?, 'admin')").run(name, hash);
-    console.log(`Admin erstellt: ${name} / admin123`);
-  }
+// Ensure admin "Lio" exists (only admin account)
+if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Lio'").get()) {
+  const hash = bcrypt.hashSync('2202', 10);
+  db.prepare("INSERT OR REPLACE INTO benutzer (benutzername, passwort, rolle) VALUES ('Lio', ?, 'admin')").run(hash);
+  console.log('Admin erstellt: Lio / 2202');
 }
 
 // Session middleware
@@ -89,13 +86,19 @@ app.use('/uploads', requireLogin, express.static(uploadsDir));
 
 // ===== AUTH ROUTES =====
 app.post('/api/login', (req, res) => {
-  const { benutzername, passwort } = req.body;
-  if (!benutzername || !passwort)
-    return res.status(400).json({ error: 'Benutzername und Passwort erforderlich' });
+  const { benutzername, passwort, geburtsdatum } = req.body;
+  if (!benutzername) return res.status(400).json({ error: 'Benutzername erforderlich' });
 
   const user = db.prepare('SELECT * FROM benutzer WHERE benutzername = ?').get(benutzername);
-  if (!user || !bcrypt.compareSync(passwort, user.passwort))
-    return res.status(401).json({ error: 'Falscher Benutzername oder Passwort' });
+  if (!user) return res.status(401).json({ error: 'Falscher Benutzername oder Zugangsdaten' });
+
+  if (user.rolle === 'admin') {
+    if (!passwort || !bcrypt.compareSync(passwort, user.passwort))
+      return res.status(401).json({ error: 'Falsches Passwort' });
+  } else {
+    if (!geburtsdatum || geburtsdatum !== user.geburtsdatum)
+      return res.status(401).json({ error: 'Falsches Geburtsdatum' });
+  }
 
   req.session.benutzer = { id: user.id, benutzername: user.benutzername, rolle: user.rolle };
   res.json({ rolle: user.rolle, benutzername: user.benutzername });
@@ -112,23 +115,22 @@ app.get('/api/ich', requireLogin, (req, res) => {
 
 // ===== ADMIN ROUTES =====
 app.get('/api/admin/benutzer', requireAdmin, (req, res) => {
-  const users = db.prepare("SELECT id, benutzername, rolle, erstellt_am FROM benutzer ORDER BY erstellt_am DESC").all();
+  const users = db.prepare("SELECT id, benutzername, rolle, geburtsdatum, erstellt_am FROM benutzer ORDER BY erstellt_am DESC").all();
   res.json(users);
 });
 
 app.post('/api/admin/benutzer', requireAdmin, (req, res) => {
-  const { benutzername, passwort, rolle } = req.body;
-  if (!benutzername || !passwort)
-    return res.status(400).json({ error: 'Benutzername und Passwort erforderlich' });
+  const { benutzername, geburtsdatum } = req.body;
+  if (!benutzername || !geburtsdatum)
+    return res.status(400).json({ error: 'Benutzername und Geburtsdatum erforderlich' });
 
   const existing = db.prepare('SELECT id FROM benutzer WHERE benutzername = ?').get(benutzername);
   if (existing) return res.status(400).json({ error: 'Benutzername bereits vergeben' });
 
-  const hash = bcrypt.hashSync(passwort, 10);
-  const result = db.prepare("INSERT INTO benutzer (benutzername, passwort, rolle) VALUES (?, ?, ?)").run(
-    benutzername, hash, rolle === 'admin' ? 'admin' : 'benutzer'
-  );
-  res.status(201).json({ id: result.lastInsertRowid, benutzername, rolle: rolle || 'benutzer' });
+  const result = db.prepare(
+    "INSERT INTO benutzer (benutzername, passwort, rolle, geburtsdatum) VALUES (?, '', 'benutzer', ?)"
+  ).run(benutzername, geburtsdatum);
+  res.status(201).json({ id: result.lastInsertRowid, benutzername, rolle: 'benutzer' });
 });
 
 app.delete('/api/admin/benutzer/:id', requireAdmin, (req, res) => {

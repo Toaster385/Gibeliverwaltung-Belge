@@ -92,25 +92,18 @@
         <div class="add-user-form">
           <div class="form-group">
             <label>Benutzername</label>
-            <input type="text" id="neuBenutzername" class="input-field" placeholder="Benutzername">
+            <input type="text" id="neuBenutzername" class="input-field" placeholder="Name">
           </div>
           <div class="form-group">
-            <label>Passwort</label>
-            <input type="password" id="neuPasswort" class="input-field" placeholder="Passwort">
-          </div>
-          <div class="form-group">
-            <label>Rolle</label>
-            <select id="neuRolle" class="input-field">
-              <option value="benutzer">Benutzer</option>
-              <option value="admin">Admin</option>
-            </select>
+            <label>Geburtsdatum</label>
+            <input type="date" id="neuGeburtsdatum" class="input-field">
           </div>
           <button class="btn-add" id="btnAddUser">+ Hinzufügen</button>
         </div>
         <div id="userError" class="error-msg hidden"></div>
         <table>
           <thead>
-            <tr><th>Benutzername</th><th>Rolle</th><th>Erstellt</th><th>Belege</th><th></th></tr>
+            <tr><th>Benutzername</th><th>Geburtsdatum</th><th>Rolle</th><th>Belege</th><th></th></tr>
           </thead>
           <tbody id="userTableBody"></tbody>
         </table>
@@ -194,28 +187,37 @@
       window.location.href = '/login.html';
     });
 
-    document.getElementById('btnAddUser').addEventListener('click', async () => {
-      const err = document.getElementById('userError');
+    document.getElementById('btnAddUser').addEventListener('click', function() {
+      var err = document.getElementById('userError');
       err.classList.add('hidden');
-      try {
-        const res = await fetch('/api/admin/benutzer', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            benutzername: document.getElementById('neuBenutzername').value,
-            passwort: document.getElementById('neuPasswort').value,
-            rolle: document.getElementById('neuRolle').value
-          })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        document.getElementById('neuBenutzername').value = '';
-        document.getElementById('neuPasswort').value = '';
-        ladeBenutzer();
-      } catch (e) {
-        err.textContent = e.message;
+      var benutzername = document.getElementById('neuBenutzername').value.trim();
+      var geburtsdatum = document.getElementById('neuGeburtsdatum').value;
+      if (!benutzername || !geburtsdatum) {
+        err.textContent = 'Bitte Name und Geburtsdatum eingeben';
         err.classList.remove('hidden');
+        return;
       }
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/benutzer', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (xhr.status !== 201) {
+            err.textContent = data.error || 'Fehler';
+            err.classList.remove('hidden');
+            return;
+          }
+          document.getElementById('neuBenutzername').value = '';
+          document.getElementById('neuGeburtsdatum').value = '';
+          ladeBenutzer();
+        } catch(e) {
+          err.textContent = 'Fehler beim Erstellen';
+          err.classList.remove('hidden');
+        }
+      };
+      xhr.send(JSON.stringify({ benutzername: benutzername, geburtsdatum: geburtsdatum }));
     });
 
     async function showAdminPanel() {
@@ -236,10 +238,10 @@
       document.getElementById('userTableBody').innerHTML = users.map(u => `
         <tr>
           <td><strong>${esc(u.benutzername)}</strong></td>
+          <td>${u.geburtsdatum ? new Date(u.geburtsdatum + 'T00:00:00').toLocaleDateString('de-DE') : '–'}</td>
           <td><span class="badge badge-${u.rolle === 'admin' ? 'admin' : 'user'}">${u.rolle}</span></td>
-          <td>${new Date(u.erstellt_am).toLocaleDateString('de-DE')}</td>
           <td>${countMap[u.benutzername] || 0}</td>
-          <td><button class="btn-sm btn-danger" onclick="loescheBenutzer(${u.id})">Löschen</button></td>
+          <td>${u.rolle !== 'admin' ? `<button class="btn-sm btn-danger" onclick="loescheBenutzer(${u.id})">Löschen</button>` : ''}</td>
         </tr>`).join('');
     }
 
