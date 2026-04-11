@@ -16,6 +16,7 @@
       <div class="header-actions">
         <span class="header-user" id="headerUser"></span>
         <button class="btn btn-primary" id="btnNeuBeleg">+ Neuer Beleg</button>
+        <button class="btn btn-secondary" id="btnAktuelleBelegung">📋 Belegung</button>
         <button class="btn btn-secondary" id="btnLogout">Abmelden</button>
       </div>
     </div>
@@ -153,6 +154,26 @@
         <button class="modal-close" id="previewClose">&times;</button>
       </div>
       <div class="preview-content" id="previewContent"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Aktuelle Belegung -->
+  <div class="modal-overlay" id="belegungOverlay">
+    <div class="modal modal-belegung">
+      <div class="modal-header">
+        <h2>📋 Aktuelle Belegung</h2>
+        <button class="modal-close" id="belegungClose">&times;</button>
+      </div>
+      <div id="belegungModalContent" style="padding:20px;overflow:auto;max-height:60vh;"></div>
+      <div id="belegungUploadArea" class="hidden" style="padding:14px 20px 20px;border-top:1px solid var(--border);background:var(--bg);">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <label style="font-size:13px;font-weight:600;white-space:nowrap;">Hochladen / ersetzen:</label>
+          <input type="file" id="belegungDateiInput" accept=".xlsx,.xls,.ods" style="font-size:13px;flex:1;min-width:0;">
+          <button class="btn btn-primary" id="btnBelegungHochladen" style="white-space:nowrap;">Hochladen</button>
+          <button class="btn btn-danger" id="btnBelegungLoeschen" style="white-space:nowrap;">Löschen</button>
+        </div>
+        <div id="belegungUploadMsg" style="font-size:13px;margin-top:8px;display:none;"></div>
+      </div>
     </div>
   </div>
 

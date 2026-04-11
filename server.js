@@ -13,8 +13,10 @@ app.set('trust proxy', 1);
 // ===== Paths (use env vars for Railway persistent volumes) =====
 const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+const belegungDir = path.join(dataDir, 'belegung');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+if (!fs.existsSync(belegungDir)) fs.mkdirSync(belegungDir, { recursive: true });
 
 // ===== Database =====
 const db = new Database(path.join(dataDir, 'belege.db'));
@@ -68,7 +70,13 @@ const migrations = [
 for (const m of migrations) { try { db.exec(m); } catch (e) {} }
 
 // Default settings
-const defaultSettings = { kasse_geschlossen: '0', aktive_periode: '0' };
+const defaultSettings = {
+  kasse_geschlossen: '0',
+  aktive_periode: '0',
+  belegung_dateiname: '',
+  belegung_dateipfad: '',
+  belegung_hochgeladen_am: ''
+};
 for (const [k, v] of Object.entries(defaultSettings)) {
   db.prepare(`INSERT OR IGNORE INTO einstellungen (schluessel, wert) VALUES (?, ?)`).run(k, v);
 }
@@ -81,6 +89,18 @@ if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Lio'").get()) {
   const hash = bcrypt.hashSync('2202', 10);
   db.prepare("INSERT INTO benutzer (benutzername, passwort, rolle) VALUES ('Lio', ?, 'admin')").run(hash);
   console.log('Admin erstellt: Lio / 2202');
+}
+// Ensure admin "Admin2" exists
+if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Admin2'").get()) {
+  const h2 = bcrypt.hashSync('1111', 10);
+  db.prepare("INSERT INTO benutzer (benutzername, passwort, rolle) VALUES ('Admin2', ?, 'admin')").run(h2);
+  console.log('Admin erstellt: Admin2 / 1111');
+}
+// Ensure admin "Admin3" exists
+if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Admin3'").get()) {
+  const h3 = bcrypt.hashSync('1111', 10);
+  db.prepare("INSERT INTO benutzer (benutzername, passwort, rolle) VALUES ('Admin3', ?, 'admin')").run(h3);
+  console.log('Admin erstellt: Admin3 / 1111');
 }
 
 // ===== Helpers =====
@@ -410,6 +430,68 @@ const upload = multer({
       return cb(null, true);
     cb(new Error('Nur Bilder und PDF erlaubt'));
   }
+});
+
+// ===== MULTER: BELEGUNG (Excel) =====
+const belegungStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, belegungDir),
+  filename: (req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, unique + path.extname(file.originalname));
+  }
+});
+const uploadBelegung = multer({
+  storage: belegungStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.xlsx', '.xls', '.ods'].includes(ext)) return cb(null, true);
+    cb(new Error('Nur Excel-Dateien (.xlsx, .xls, .ods) erlaubt'));
+  }
+});
+
+// ===== BELEGUNG ROUTES =====
+app.get('/api/belegung/datei', requireLogin, (req, res) => {
+  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
+  if (!dateipfad?.wert) return res.status(404).json({ error: 'Keine Datei vorhanden' });
+  const filePath = path.join(belegungDir, dateipfad.wert);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
+  res.sendFile(filePath);
+});
+
+app.get('/api/belegung', requireLogin, (req, res) => {
+  const dateiname = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateiname'`).get();
+  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
+  const hochgeladen = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_hochgeladen_am'`).get();
+  if (!dateipfad?.wert) return res.json({ vorhanden: false });
+  const filePath = path.join(belegungDir, dateipfad.wert);
+  if (!fs.existsSync(filePath)) return res.json({ vorhanden: false });
+  res.json({ vorhanden: true, dateiname: dateiname?.wert || 'belegung.xlsx', hochgeladen_am: hochgeladen?.wert || '' });
+});
+
+app.post('/api/belegung', requireVerwaltung, uploadBelegung.single('datei'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' });
+  const oldPath = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
+  if (oldPath?.wert) {
+    const old = path.join(belegungDir, oldPath.wert);
+    if (fs.existsSync(old)) try { fs.unlinkSync(old); } catch(e) {}
+  }
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateiname', ?)`).run(req.file.originalname);
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateipfad', ?)`).run(req.file.filename);
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_hochgeladen_am', ?)`).run(new Date().toISOString());
+  res.json({ success: true, dateiname: req.file.originalname });
+});
+
+app.delete('/api/belegung', requireVerwaltung, (req, res) => {
+  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
+  if (dateipfad?.wert) {
+    const filePath = path.join(belegungDir, dateipfad.wert);
+    if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch(e) {}
+  }
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateiname', '')`).run();
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateipfad', '')`).run();
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_hochgeladen_am', '')`).run();
+  res.json({ success: true });
 });
 
 // ===== BELEGE ROUTES =====

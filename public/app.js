@@ -6,6 +6,7 @@ let wechselkurs = { EUR_to_CHF: 0.95, CHF_to_EUR: 1.053 };
 let statsData = null;
 let kasseGeschlossen = false;
 let statsWaehrung = 'EUR';
+let currentUser = null;
 
 const filterSuche = document.getElementById('filterSuche');
 const filterVon = document.getElementById('filterVon');
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (xhr.status !== 200) { window.location.href = '/login.html'; return; }
     try {
       var user = JSON.parse(xhr.responseText);
+      currentUser = user;
       document.getElementById('headerUser').textContent = '👤 ' + user.benutzername;
     } catch(e) { window.location.href = '/login.html'; return; }
     ladeEinstellungen();
@@ -101,6 +103,15 @@ function setupEventListeners() {
   });
 
   document.getElementById('btnSpeichern').addEventListener('click', speichereBeleg);
+
+  // Aktuelle Belegung
+  document.getElementById('btnAktuelleBelegung').addEventListener('click', oeffneBelegungModal);
+  document.getElementById('belegungClose').addEventListener('click', schliesseBelegungModal);
+  document.getElementById('belegungOverlay').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('belegungOverlay')) schliesseBelegungModal();
+  });
+  document.getElementById('btnBelegungHochladen').addEventListener('click', hochladenBelegung);
+  document.getElementById('btnBelegungLoeschen').addEventListener('click', loeschenBelegung);
 
   // Form currency toggle (only inside form)
   document.querySelectorAll('#formBeleg .waehrung-btn').forEach(function(btn) {
@@ -611,4 +622,177 @@ function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+// ===== Aktuelle Belegung =====
+function oeffneBelegungModal() {
+  document.getElementById('belegungOverlay').classList.add('active');
+  ladeBelegungInfo();
+}
+
+function schliesseBelegungModal() {
+  document.getElementById('belegungOverlay').classList.remove('active');
+}
+
+function ladeBelegungInfo() {
+  var content = document.getElementById('belegungModalContent');
+  content.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px 0;">Wird geladen...</p>';
+
+  var hatRechte = currentUser && (currentUser.rolle || '').split(',').map(function(r) {
+    return r.trim();
+  }).some(function(r) { return r === 'admin' || r === 'verwaltung'; });
+
+  var uploadArea = document.getElementById('belegungUploadArea');
+  var uploadMsg = document.getElementById('belegungUploadMsg');
+  if (uploadMsg) uploadMsg.style.display = 'none';
+  if (hatRechte) { uploadArea.classList.remove('hidden'); } else { uploadArea.classList.add('hidden'); }
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/belegung', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      zeigeBelegungTabelle(JSON.parse(xhr.responseText), hatRechte);
+    } catch(e) {
+      content.innerHTML = '<p style="color:var(--danger);text-align:center;">Fehler beim Laden</p>';
+    }
+  };
+  xhr.send();
+}
+
+function zeigeBelegungTabelle(data, hatRechte) {
+  var content = document.getElementById('belegungModalContent');
+  var btnDel = document.getElementById('btnBelegungLoeschen');
+
+  if (!data.vorhanden) {
+    content.innerHTML =
+      '<div style="text-align:center;padding:40px 20px;">' +
+        '<div style="font-size:48px;opacity:.4;margin-bottom:12px;">📋</div>' +
+        '<p style="color:var(--text-muted);">Noch keine Belegung hochgeladen.</p>' +
+        (hatRechte ? '<p style="color:var(--text-muted);font-size:13px;margin-top:6px;">Lade eine Excel-Datei unten hoch.</p>' : '') +
+      '</div>';
+    if (btnDel) btnDel.style.visibility = 'hidden';
+    return;
+  }
+
+  if (btnDel) btnDel.style.visibility = '';
+
+  var hochgeladenAm = '';
+  if (data.hochgeladen_am) {
+    try { hochgeladenAm = new Date(data.hochgeladen_am).toLocaleString('de-DE'); } catch(e) {}
+  }
+
+  content.innerHTML =
+    '<div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+      '<strong>📄 ' + escapeHtml(data.dateiname) + '</strong>' +
+      (hochgeladenAm ? '<span style="color:var(--text-muted);font-size:12px;">Hochgeladen: ' + hochgeladenAm + '</span>' : '') +
+    '</div>' +
+    '<div id="belegungTabelle">' +
+      '<p style="color:var(--text-muted);font-size:13px;">Tabelle wird geladen...</p>' +
+    '</div>';
+
+  ladeXLSXUndRendere();
+}
+
+function ladeXLSXUndRendere() {
+  if (typeof XLSX !== 'undefined') { fetchUndRendereExcel(); return; }
+  var script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  script.onload = fetchUndRendereExcel;
+  script.onerror = function() {
+    var t = document.getElementById('belegungTabelle');
+    if (t) t.innerHTML = '<p style="color:var(--danger);">Excel-Bibliothek konnte nicht geladen werden.</p>';
+  };
+  document.head.appendChild(script);
+}
+
+function fetchUndRendereExcel() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/belegung/datei', true);
+  xhr.responseType = 'arraybuffer';
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    var t = document.getElementById('belegungTabelle');
+    if (!t) return;
+    if (xhr.status !== 200) {
+      t.innerHTML = '<p style="color:var(--danger);">Datei konnte nicht geladen werden.</p>';
+      return;
+    }
+    try {
+      var wb = XLSX.read(new Uint8Array(xhr.response), { type: 'array' });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (!rows.length) { t.innerHTML = '<p style="color:var(--text-muted);">Die Tabelle ist leer.</p>'; return; }
+      var html = '<div style="overflow:auto;max-height:50vh;"><table class="belegung-table"><tbody>';
+      rows.forEach(function(row, ri) {
+        html += '<tr>';
+        (row || []).forEach(function(cell) {
+          var tag = ri === 0 ? 'th' : 'td';
+          html += '<' + tag + '>' + escapeHtml(String(cell === null || cell === undefined ? '' : cell)) + '</' + tag + '>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+      t.innerHTML = html;
+    } catch(e) {
+      t.innerHTML = '<p style="color:var(--danger);">Fehler beim Lesen der Datei: ' + escapeHtml(e.message || '') + '</p>';
+    }
+  };
+  xhr.send();
+}
+
+function hochladenBelegung() {
+  var input = document.getElementById('belegungDateiInput');
+  var msg = document.getElementById('belegungUploadMsg');
+  msg.style.display = 'none';
+  if (!input.files || !input.files[0]) {
+    msg.textContent = 'Bitte eine Excel-Datei auswählen.';
+    msg.style.color = '#991b1b';
+    msg.style.display = 'block';
+    return;
+  }
+  var btn = document.getElementById('btnBelegungHochladen');
+  btn.disabled = true;
+  btn.textContent = 'Wird hochgeladen...';
+  var formData = new FormData();
+  formData.append('datei', input.files[0]);
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/belegung', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    btn.disabled = false;
+    btn.textContent = 'Hochladen';
+    try {
+      var data = JSON.parse(xhr.responseText);
+      if (xhr.status !== 200) {
+        msg.textContent = data.error || 'Fehler beim Hochladen.';
+        msg.style.color = '#991b1b';
+        msg.style.display = 'block';
+        return;
+      }
+      input.value = '';
+      msg.textContent = '✓ Datei erfolgreich hochgeladen!';
+      msg.style.color = '#065f46';
+      msg.style.display = 'block';
+      setTimeout(function() { msg.style.display = 'none'; }, 3000);
+      ladeBelegungInfo();
+    } catch(e) {
+      msg.textContent = 'Unerwarteter Fehler.';
+      msg.style.color = '#991b1b';
+      msg.style.display = 'block';
+    }
+  };
+  xhr.send(formData);
+}
+
+function loeschenBelegung() {
+  if (!confirm('Belegung-Datei wirklich löschen?')) return;
+  var xhr = new XMLHttpRequest();
+  xhr.open('DELETE', '/api/belegung', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (xhr.status === 200) { ladeBelegungInfo(); }
+    else { zeigeToast('Fehler beim Löschen', 'error'); }
+  };
+  xhr.send();
 }

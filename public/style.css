@@ -683,6 +683,30 @@ form { padding: 24px; }
 .toast.success { background: var(--success); }
 .toast.error { background: var(--danger); }
 
+/* ===== Belegung Modal ===== */
+.modal-belegung { max-width: 1000px; }
+
+.belegung-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 100%;
+}
+.belegung-table th, .belegung-table td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+.belegung-table th {
+  background: #f3f4f6;
+  font-weight: 700;
+  color: #374151;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.belegung-table tr:hover td { background: #f9fafb; }
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   .stats-bar { grid-template-columns: 1fr 1fr; }
