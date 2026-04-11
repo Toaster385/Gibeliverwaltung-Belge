@@ -328,6 +328,12 @@ header {
   color: var(--text-muted);
 }
 
+.card-nr {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
 .badge {
   display: inline-block;
   padding: 2px 10px;

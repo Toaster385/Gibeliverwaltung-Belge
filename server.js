@@ -63,6 +63,7 @@ const migrations = [
   `ALTER TABLE belege ADD COLUMN waehrung TEXT NOT NULL DEFAULT 'EUR'`,
   `ALTER TABLE belege ADD COLUMN geschaeft TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE belege ADD COLUMN kategorie TEXT NOT NULL DEFAULT 'Sonstiges'`,
+  `ALTER TABLE belege ADD COLUMN belegnummer TEXT NOT NULL DEFAULT ''`,
 ];
 for (const m of migrations) { try { db.exec(m); } catch (e) {} }
 
@@ -443,17 +444,21 @@ app.post('/api/belege', requireLogin, upload.single('datei'), (req, res) => {
       return res.status(403).json({ error: 'Die Kasse ist geschlossen – keine Änderungen möglich' });
     }
   }
-  const { datum, geschaeft, betrag, notiz, waehrung } = req.body;
+  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer } = req.body;
   if (!datum || betrag === undefined || !req.file)
     return res.status(400).json({ error: 'Datum, Betrag und Datei sind Pflichtfelder' });
+  if (!belegnummer || !/^\d{3}$/.test(belegnummer.trim())) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Bitte die letzten 3 Ziffern der Belegnummer angeben' });
+  }
 
   const result = db.prepare(`
-    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung, belegnummer)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     req.session.benutzer.id, datum, geschaeft || '', parseFloat(betrag),
     notiz || null, req.file.originalname, req.file.filename,
-    waehrung === 'CHF' ? 'CHF' : 'EUR'
+    waehrung === 'CHF' ? 'CHF' : 'EUR', belegnummer.trim()
   );
   res.status(201).json(db.prepare('SELECT * FROM belege WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -475,17 +480,19 @@ app.put('/api/belege/:id', requireLogin, upload.single('datei'), (req, res) => {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: 'Eingetragene Belege können nicht mehr bearbeitet werden' });
   }
-  const { datum, geschaeft, betrag, notiz, waehrung } = req.body;
+  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer } = req.body;
   let dateipfad = existing.dateipfad, dateiname = existing.dateiname;
   if (req.file) {
     if (existing.dateipfad) { const old = path.join(uploadsDir, existing.dateipfad); if (fs.existsSync(old)) fs.unlinkSync(old); }
     dateipfad = req.file.filename; dateiname = req.file.originalname;
   }
-  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=? WHERE id=?`)
+  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=?,belegnummer=? WHERE id=?`)
     .run(datum||existing.datum, geschaeft!==undefined?geschaeft:existing.geschaeft,
       betrag!==undefined?parseFloat(betrag):existing.betrag,
       notiz!==undefined?notiz:existing.notiz,
-      dateiname, dateipfad, waehrung||existing.waehrung, req.params.id);
+      dateiname, dateipfad, waehrung||existing.waehrung,
+      belegnummer!==undefined?belegnummer.trim():existing.belegnummer,
+      req.params.id);
   res.json(db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id));
 });
 

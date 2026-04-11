@@ -8,7 +8,6 @@ let kasseGeschlossen = false;
 let statsWaehrung = 'EUR';
 
 const filterSuche = document.getElementById('filterSuche');
-const filterKategorie = document.getElementById('filterKategorie');
 const filterVon = document.getElementById('filterVon');
 const filterBis = document.getElementById('filterBis');
 
@@ -130,7 +129,6 @@ function setupEventListeners() {
     clearTimeout(filterTimeout);
     filterTimeout = setTimeout(ladeBelege, 300);
   });
-  filterKategorie.addEventListener('change', ladeBelege);
   filterVon.addEventListener('change', ladeBelege);
   filterBis.addEventListener('change', ladeBelege);
   document.getElementById('btnFilterReset').addEventListener('click', resetFilter);
@@ -180,12 +178,10 @@ function setupEventListeners() {
 function ladeBelege() {
   var params = new URLSearchParams();
   var suche = filterSuche.value.trim();
-  var kat = filterKategorie.value;
   var von = filterVon.value;
   var bis = filterBis.value;
 
   if (suche) params.append('suche', suche);
-  if (kat && kat !== 'alle') params.append('kategorie', kat);
   if (von) params.append('von', von);
   if (bis) params.append('bis', bis);
 
@@ -289,6 +285,7 @@ function speichereBeleg(e) {
 
   var datum = document.getElementById('feldDatum').value;
   var betrag = document.getElementById('feldBetrag').value;
+  var belegnummer = document.getElementById('feldBelegnummer').value.trim();
   var dateiFile = document.getElementById('feldDatei').files[0];
   var hatExistingFile = !document.getElementById('existingFile').classList.contains('hidden');
 
@@ -299,6 +296,11 @@ function speichereBeleg(e) {
   }
   if (!betrag || parseFloat(betrag) <= 0) {
     formError.textContent = 'Bitte einen gültigen Betrag angeben.';
+    formError.classList.remove('hidden');
+    return;
+  }
+  if (!belegnummer || !/^\d{3}$/.test(belegnummer)) {
+    formError.textContent = 'Bitte genau 3 Ziffern der Belegnummer angeben (z.B. 123).';
     formError.classList.remove('hidden');
     return;
   }
@@ -313,6 +315,7 @@ function speichereBeleg(e) {
 
   var formData = new FormData();
   formData.append('datum', datum);
+  formData.append('belegnummer', belegnummer);
   formData.append('geschaeft', document.getElementById('feldGeschaeft').value);
   formData.append('betrag', betrag);
   formData.append('notiz', document.getElementById('feldNotiz').value);
@@ -434,6 +437,7 @@ function kartHTML(b) {
       '</div>' +
       '<div class="card-meta">' +
         '<span class="card-date">' + formatDatum(b.datum) + '</span>' +
+        (b.belegnummer ? '<span class="card-nr">Nr. …' + escapeHtml(b.belegnummer) + '</span>' : '') +
         '<span class="badge status-' + (b.status || 'ausstehend') + '">' +
           (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') + '</span>' +
       '</div>' +
@@ -465,6 +469,7 @@ function oeffneModal(id) {
     document.getElementById('feldDatum').value = b.datum;
     document.getElementById('feldGeschaeft').value = b.geschaeft;
     document.getElementById('feldBetrag').value = b.betrag;
+    document.getElementById('feldBelegnummer').value = b.belegnummer || '';
     document.getElementById('feldNotiz').value = b.notiz || '';
     setWaehrung(b.waehrung || 'EUR');
 
@@ -570,7 +575,6 @@ function loescheDateiVorschau() {
 // ===== Filter =====
 function resetFilter() {
   filterSuche.value = '';
-  filterKategorie.value = 'alle';
   filterVon.value = '';
   filterBis.value = '';
   ladeBelege();
