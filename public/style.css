@@ -683,6 +683,116 @@ form { padding: 24px; }
 .toast.success { background: var(--success); }
 .toast.error { background: var(--danger); }
 
+/* ===== Menu Button ===== */
+.btn-menu {
+  background: none;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0;
+  transition: all .15s;
+}
+.btn-menu:hover { background: var(--bg); border-color: var(--secondary); }
+
+/* ===== Sidebar ===== */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.35);
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.sidebar-overlay.active { opacity: 1; pointer-events: all; }
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 85vw;
+  background: var(--surface);
+  z-index: 310;
+  box-shadow: -6px 0 24px rgba(0,0,0,.15);
+  transform: translateX(100%);
+  transition: transform .25s ease;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar.active { transform: translateX(0); }
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  background: var(--primary);
+  color: white;
+  flex-shrink: 0;
+}
+
+#sidebarUser {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+.sidebar-close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.8);
+  font-size: 26px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+}
+.sidebar-close:hover { color: white; }
+
+.sidebar-menu {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: none;
+  background: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  transition: background .15s;
+  width: 100%;
+}
+.sidebar-item:hover { background: var(--bg); }
+.sidebar-item-danger { color: var(--danger); }
+.sidebar-item-danger:hover { background: #fee2e2; }
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0;
+}
+
 /* ===== Belegung Modal ===== */
 .modal-belegung { max-width: 1000px; }
 

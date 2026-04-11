@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
       var user = JSON.parse(xhr.responseText);
       currentUser = user;
       document.getElementById('headerUser').textContent = '👤 ' + user.benutzername;
+      document.getElementById('sidebarUser').textContent = '👤 ' + user.benutzername;
     } catch(e) { window.location.href = '/login.html'; return; }
     ladeEinstellungen();
     ladeWechselkurs();
@@ -83,7 +84,12 @@ function setupEventListeners() {
     if (kasseGeschlossen) return;
     oeffneModal();
   });
-  document.getElementById('btnLogout').addEventListener('click', function() {
+
+  // Sidebar (three-dot menu)
+  document.getElementById('btnMenu').addEventListener('click', oeffneSidebar);
+  document.getElementById('sidebarClose').addEventListener('click', schliesseSidebar);
+  document.getElementById('sidebarOverlay').addEventListener('click', schliesseSidebar);
+  document.getElementById('sidebarLogout').addEventListener('click', function() {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/logout', true);
     xhr.onreadystatechange = function() {
@@ -91,6 +97,10 @@ function setupEventListeners() {
       window.location.href = '/login.html';
     };
     xhr.send();
+  });
+  document.getElementById('sidebarBelegung').addEventListener('click', function() {
+    schliesseSidebar();
+    oeffneBelegungModal();
   });
   document.getElementById('modalClose').addEventListener('click', schliesseModal);
   document.getElementById('btnAbbrechen').addEventListener('click', schliesseModal);
@@ -104,8 +114,7 @@ function setupEventListeners() {
 
   document.getElementById('btnSpeichern').addEventListener('click', speichereBeleg);
 
-  // Aktuelle Belegung
-  document.getElementById('btnAktuelleBelegung').addEventListener('click', oeffneBelegungModal);
+  // Aktuelle Belegung modal
   document.getElementById('belegungClose').addEventListener('click', schliesseBelegungModal);
   document.getElementById('belegungOverlay').addEventListener('click', function(e) {
     if (e.target === document.getElementById('belegungOverlay')) schliesseBelegungModal();
@@ -181,6 +190,8 @@ function setupEventListeners() {
     if (e.key === 'Escape') {
       schliesseModal();
       schliessePreview();
+      schliesseSidebar();
+      schliesseBelegungModal();
     }
   });
 }
@@ -622,6 +633,17 @@ function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+// ===== Sidebar =====
+function oeffneSidebar() {
+  document.getElementById('sidebar').classList.add('active');
+  document.getElementById('sidebarOverlay').classList.add('active');
+}
+
+function schliesseSidebar() {
+  document.getElementById('sidebar').classList.remove('active');
+  document.getElementById('sidebarOverlay').classList.remove('active');
 }
 
 // ===== Aktuelle Belegung =====

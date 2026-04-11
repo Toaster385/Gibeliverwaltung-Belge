@@ -16,11 +16,24 @@
       <div class="header-actions">
         <span class="header-user" id="headerUser"></span>
         <button class="btn btn-primary" id="btnNeuBeleg">+ Neuer Beleg</button>
-        <button class="btn btn-secondary" id="btnAktuelleBelegung">📋 Belegung</button>
-        <button class="btn btn-secondary" id="btnLogout">Abmelden</button>
+        <button class="btn-menu" id="btnMenu" aria-label="Menü">⋮</button>
       </div>
     </div>
   </header>
+
+  <!-- Sidebar -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span id="sidebarUser"></span>
+      <button class="sidebar-close" id="sidebarClose">&times;</button>
+    </div>
+    <nav class="sidebar-menu">
+      <button class="sidebar-item" id="sidebarBelegung">📋 Aktuelle Belegung</button>
+      <div class="sidebar-divider"></div>
+      <button class="sidebar-item sidebar-item-danger" id="sidebarLogout">🚪 Abmelden</button>
+    </nav>
+  </aside>
 
   <!-- Kasse geschlossen Banner -->
   <div id="kasseBanner" class="kasse-banner hidden">
