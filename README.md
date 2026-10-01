@@ -80,7 +80,7 @@ npm test
 ## Aktuelle Belegung, Gerichte und „Im Gibeli“
 
 **Aktuelle Belegung** hat drei Ansichten (Menü ⋮):
-- **Liste:** pro Aufenthalt eine Zeile – **Name, Personen, Von, Bis, Zimmer** (mit „im Haus“ / „kommt in 3 Tagen“), Filter *Aktuell & kommend / Alle / Vergangen*, Suche. Auf dem Handy als Karten.
+- **Liste:** pro Aufenthalt eine Zeile – **Name, Personen, Von, Bis, Zimmer** (mit „im Haus“ / „kommt in 3 Tagen“), ein einziger **Jahres-Knopf** (zeigt alle Aufenthalte des gewählten Jahres, das aktuelle Jahr ist vorgewählt; Aufenthalte über den Jahreswechsel erscheinen in beiden Jahren), Suche. Auf dem Handy als Karten.
 - **Pro Tag:** wie viele Personen an welchem Tag im Haus sind und wer (z. B. für die Essensplanung), mit der höchsten Belegung.
 - **Excel-Datei:** die hochgeladene Originaldatei als Tabelle im Website-Design (Blätter als Reiter, Suche, Download, Datum richtig angezeigt).
 

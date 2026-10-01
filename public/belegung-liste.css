@@ -3,10 +3,12 @@
 
 /* ----- Liste / Pro Tag ----- */
 .bl-kopf { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; margin-bottom: 12px; }
-.bl-filter { display: flex; gap: 6px; flex-wrap: wrap; }
-.bl-chip { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 160ms, color 160ms, border-color 160ms; }
-.bl-chip:hover { background: var(--tanne-hell); color: var(--tanne); }
-.bl-chip.aktiv { background: var(--tanne); border-color: var(--tanne); color: #fff; }
+/* Ein einziger Knopf zur Jahreswahl */
+.bl-jahr-wrap { position: relative; display: inline-flex; }
+.bl-jahr { -webkit-appearance: none; appearance: none; min-height: 40px; padding: 6px 38px 6px 18px; border-radius: 999px; border: 1.5px solid var(--tanne); background: var(--tanne); color: #fff; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: background 160ms; }
+.bl-jahr:hover { background: var(--tanne-dunkel); }
+.bl-jahr option { color: var(--text); background: #fff; }
+.bl-jahr-wrap::after { content: ''; position: absolute; right: 16px; top: 50%; width: 7px; height: 7px; margin-top: -6px; border-right: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(45deg); pointer-events: none; }
 .bl-suche { flex: 1 1 200px; min-height: 40px !important; padding: 6px 12px !important; font-size: 14px !important; max-width: 320px; }
 .bl-aktionen { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 .bl-datei { position: relative; }

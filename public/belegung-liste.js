@@ -261,7 +261,7 @@
 
   // ---------- Liste ----------
   function renderListe(host, ctx) {
-    var zustand = { filter: 'aktuell', suche: '' };
+    var zustand = { jahr: null, suche: '' };
     host.innerHTML = '<p class="bl-hinweis" style="text-align:center;padding:30px 0;">Wird geladen …</p>';
     ladeDaten(function(daten) {
       if (!daten) { host.innerHTML = '<p class="bl-hinweis" style="text-align:center;padding:30px 0;">Konnte nicht geladen werden.</p>'; return; }
@@ -271,28 +271,33 @@
     function zeichne(daten) {
       var h = heuteIso(), schreiben = daten.kannSchreiben;
       var alle = daten.eintraege;
-      var f = zustand.filter;
+      // Jahre, in denen es Aufenthalte gibt (ein Aufenthalt über den Jahreswechsel zählt in beiden Jahren)
+      var jahre = {};
+      alle.forEach(function(e) { for (var y = +e.von.slice(0, 4); y <= +e.bis.slice(0, 4); y++) jahre[y] = true; });
+      var jahrListe = Object.keys(jahre).map(Number).sort(function(x, y) { return y - x; });
+      if (zustand.jahr === null || jahrListe.indexOf(zustand.jahr) < 0) {
+        var dieses = +h.slice(0, 4);
+        zustand.jahr = jahrListe.indexOf(dieses) >= 0 ? dieses
+          : (jahrListe.filter(function(y) { return y <= dieses; })[0] || jahrListe[jahrListe.length - 1] || dieses);
+      }
+      var jahr = zustand.jahr;
       var sichtbar = alle.filter(function(e) {
-        if (f === 'aktuell' && e.bis < h) return false;
-        if (f === 'vorbei' && e.bis >= h) return false;
+        if (e.von.slice(0, 4) > String(jahr) || e.bis.slice(0, 4) < String(jahr)) return false;
         if (zustand.suche) {
           var t = (e.name + ' ' + (e.zimmer || '') + ' ' + (e.notiz || '')).toLowerCase();
           if (t.indexOf(zustand.suche.toLowerCase()) < 0) return false;
         }
         return true;
       });
-      if (f === 'vorbei') sichtbar.reverse();
       var html = '<div class="bl-kopf">' +
-        '<div class="bl-filter" role="group" aria-label="Anzeige">' +
-          [['aktuell', 'Aktuell & kommend'], ['alle', 'Alle'], ['vorbei', 'Vergangen']].map(function(x) {
-            return '<button type="button" class="bl-chip' + (f === x[0] ? ' aktiv' : '') + '" data-f="' + x[0] + '">' + x[1] + '</button>'; }).join('') +
-        '</div>' +
+        (jahrListe.length ? '<label class="bl-jahr-wrap"><span class="sr-file">Jahr wählen</span><select class="bl-jahr" aria-label="Jahr wählen">' +
+          jahrListe.map(function(y) { return '<option value="' + y + '"' + (y === jahr ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select></label>' : '') +
         '<input type="search" class="input-field bl-suche" placeholder="Name oder Zimmer suchen …" aria-label="Suchen" value="' + esc(zustand.suche) + '">' +
         (schreiben ? '<div class="bl-aktionen"><button type="button" class="xl-btn xl-btn-primary" data-a="neu">+ Eintrag</button>' +
           '<label class="xl-btn bl-datei" title="Excel-Belegung einlesen">Excel einlesen<input type="file" class="sr-file" accept=".xlsx,.xls,.ods"></label></div>' : '') +
       '</div>';
       if (!sichtbar.length) {
-        html += '<div class="bl-leer">' + BERG + '<p>' + (alle.length ? 'Keine Einträge in dieser Ansicht.' : 'Noch keine Belegung eingetragen.') + '</p>' +
+        html += '<div class="bl-leer">' + BERG + '<p>' + (alle.length ? 'Keine Einträge in diesem Jahr.' : 'Noch keine Belegung eingetragen.') + '</p>' +
           (!alle.length && schreiben ? '<p class="bl-hinweis">Lies deine Excel-Belegung ein („Excel einlesen“) oder lege einen Eintrag an.</p>' : '') + '</div>';
       } else {
         html += '<div class="bl-scroll"><table class="bl-tabelle"><thead><tr><th>Name</th><th class="zahl">Personen</th><th>Von</th><th>Bis</th><th>Zimmer</th>' + (schreiben ? '<th></th>' : '') + '</tr></thead><tbody>' +
@@ -314,7 +319,8 @@
             '<button type="button" class="xl-btn" data-a="stand" data-id="' + st.id + '">Wiederherstellen</button></li>'; }).join('') + '</ul></details>';
       }
       host.innerHTML = html;
-      host.querySelectorAll('.bl-chip').forEach(function(b) { b.addEventListener('click', function() { zustand.filter = b.dataset.f; zeichne(daten); }); });
+      var jahrWahl = host.querySelector('.bl-jahr');
+      if (jahrWahl) jahrWahl.addEventListener('change', function() { zustand.jahr = parseInt(jahrWahl.value, 10); zeichne(daten); });
       var such = host.querySelector('.bl-suche');
       such.addEventListener('input', function() {
         zustand.suche = such.value; var pos = such.selectionStart; zeichne(daten);
