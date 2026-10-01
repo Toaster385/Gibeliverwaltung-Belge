@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:lan": "node lan.js",
     "dev": "nodemon server.js"
   },
   "dependencies": {
