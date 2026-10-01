@@ -8,33 +8,63 @@ let kasseGeschlossen = false;
 let statsWaehrung = 'EUR';
 let currentUser = null;
 // Beleg-Scan: Foto wurde komprimiert, auf dem Server gelesen und wartet dort (scanToken)
-let scanState = { token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, laufend: false };
+let scanState = { token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, geschaeft: null, file: null, laufend: false };
+// Weitere Fotos (z.B. 2. Seite eines langen Belegs)
+let zusatzNeu = [];        // neu aufgenommene (bereits komprimierte) Dateien
+let zusatzEntfernen = [];  // IDs bestehender Zusatzfotos, die beim Speichern entfernt werden
+let zusatzBestehend = [];  // bestehende Zusatzfotos beim Bearbeiten
+const MAX_ZUSATZ = 5;
 
 const filterSuche = document.getElementById('filterSuche');
 const filterVon = document.getElementById('filterVon');
 const filterBis = document.getElementById('filterBis');
 
 // ===== Init =====
+var offlineStart = false;
 document.addEventListener('DOMContentLoaded', function() {
+  function starten(user, offline) {
+    currentUser = user;
+    document.getElementById('headerUser').textContent = user.benutzername;
+    document.getElementById('sidebarUser').textContent = user.benutzername;
+    offlineStart = !!offline;
+    if (!offline) { ladeEinstellungen(); ladeWechselkurs(); ladeBelege(); ladeStatistiken(); }
+    setupEventListeners();
+    richteMenueEin();
+    initQueue();
+    if (offline) zeigeOfflineHinweis();
+  }
   var xhr = new XMLHttpRequest();
   xhr.open('GET', '/api/ich', true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    if (xhr.status !== 200) { window.location.href = '/login.html'; return; }
-    try {
-      var user = JSON.parse(xhr.responseText);
-      currentUser = user;
-      document.getElementById('headerUser').textContent = user.benutzername;
-      document.getElementById('sidebarUser').textContent = user.benutzername;
-    } catch(e) { window.location.href = '/login.html'; return; }
-    ladeEinstellungen();
-    ladeWechselkurs();
-    ladeBelege();
-    ladeStatistiken();
-    setupEventListeners();
+  xhr.timeout = 10000;
+  xhr.onload = function() {
+    if (xhr.status !== 200) { try { localStorage.removeItem('gibeli_user'); } catch (e) {} window.location.href = '/login.html'; return; }
+    var user;
+    try { user = JSON.parse(xhr.responseText); } catch (e) { window.location.href = '/login.html'; return; }
+    if (user.mussAendern) { window.location.href = '/admin.html'; return; }
+    try { localStorage.setItem('gibeli_user', JSON.stringify({ benutzername: user.benutzername, rolle: user.rolle })); } catch (e) {}
+    starten(user, false);
   };
+  // Kein Internet beim Öffnen: App trotzdem starten (zuletzt angemeldeter Benutzer), neue Belege können erfasst werden
+  function ohneVerbindung() {
+    var u = null;
+    try { u = JSON.parse(localStorage.getItem('gibeli_user')); } catch (e) {}
+    if (u && u.benutzername) starten(u, true); else window.location.href = '/login.html';
+  }
+  xhr.onerror = ohneVerbindung;
+  xhr.ontimeout = ohneVerbindung;
   xhr.send();
 });
+
+function zeigeOfflineHinweis() {
+  var el = document.getElementById('emptyState'); if (el) el.classList.add('hidden');
+  var b = document.getElementById('queueBanner');
+  var hinweis = document.createElement('div');
+  hinweis.id = 'offlineHinweis';
+  hinweis.className = 'queue-banner';
+  hinweis.textContent = 'Kein Internet – bestehende Belege sind erst wieder sichtbar, wenn die Verbindung da ist. Neue Belege kannst du trotzdem erfassen; sie werden automatisch gesendet.';
+  b.parentNode.insertBefore(hinweis, b);
+  window.addEventListener('online', function() { window.location.reload(); });
+}
 
 function ladeEinstellungen() {
   var xhr = new XMLHttpRequest();
@@ -92,6 +122,7 @@ function setupEventListeners() {
   document.getElementById('sidebarClose').addEventListener('click', schliesseSidebar);
   document.getElementById('sidebarOverlay').addEventListener('click', schliesseSidebar);
   document.getElementById('sidebarLogout').addEventListener('click', function() {
+    try { localStorage.removeItem('gibeli_user'); } catch (e) {}
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/logout', true);
     xhr.onreadystatechange = function() {
@@ -114,6 +145,8 @@ function setupEventListeners() {
 
   // Excel-Bereiche (Aktuelle Belegung, Gerichte)
   initExcelBereiche();
+  initZusatzfotos();
+  initPinPapierkorbExport();
 
   // Form currency toggle (only inside form)
   document.querySelectorAll('#formBeleg .waehrung-btn').forEach(function(btn) {
@@ -173,6 +206,7 @@ function setupEventListeners() {
   document.getElementById('feldDatum').addEventListener('input', aktualisiereScanHinweise);
   document.getElementById('feldBelegnummer').addEventListener('input', aktualisiereScanHinweise);
   document.getElementById('feldBetrag').addEventListener('input', aktualisiereScanHinweise);
+  document.getElementById('feldGeschaeft').addEventListener('input', aktualisiereScanHinweise);
   document.querySelectorAll('#formBeleg .waehrung-btn').forEach(function(b) { b.addEventListener('click', function() { setTimeout(aktualisiereScanHinweise, 0); }); });
 
   document.getElementById('btnRemoveFile').addEventListener('click', function(e) {
@@ -192,6 +226,7 @@ function setupEventListeners() {
       schliessePreview();
       schliesseSidebar();
       schliesseExcelModale();
+      schliesseWeitereModale();
     }
   });
 }
@@ -306,103 +341,110 @@ function komprimieresBild(file, callback, opts) {
   reader.readAsDataURL(file);
 }
 
+function neueId() {
+  return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+var aktuelleClientId = null;
+
 function speichereBeleg(e) {
   if (e) e.preventDefault();
   var id = document.getElementById('belegId').value;
   var formError = document.getElementById('formError');
   formError.classList.add('hidden');
+  function fehler(text) { formError.textContent = text; formError.classList.remove('hidden'); }
 
   var datum = document.getElementById('feldDatum').value;
   var betrag = document.getElementById('feldBetrag').value;
   var belegnummer = document.getElementById('feldBelegnummer').value.trim();
-  var dateiFile = document.getElementById('feldDatei').files[0];
+  var gewaehlt = document.getElementById('feldDatei').files[0] || null;
   var hatExistingFile = !document.getElementById('existingFile').classList.contains('hidden');
 
-  if (!datum) {
-    formError.textContent = 'Bitte das Datum angeben.';
-    formError.classList.remove('hidden');
-    return;
-  }
-  if (!betrag || parseFloat(betrag) <= 0) {
-    formError.textContent = 'Bitte einen gültigen Betrag angeben.';
-    formError.classList.remove('hidden');
-    return;
-  }
-  if (!belegnummer || !/^\d{3}$/.test(belegnummer)) {
-    formError.textContent = 'Bitte genau 3 Ziffern der Belegnummer angeben (z.B. 123).';
-    formError.classList.remove('hidden');
-    return;
-  }
-  if (scanState.laufend) {
-    formError.textContent = 'Der Beleg wird noch gelesen – bitte einen Moment warten.';
-    formError.classList.remove('hidden');
-    return;
-  }
-  if (!dateiFile && !hatExistingFile && !scanState.token) {
-    formError.textContent = 'Bitte einen Beleg (Bild oder PDF) hochladen.';
-    formError.classList.remove('hidden');
-    return;
-  }
+  if (!datum) return fehler('Bitte das Datum angeben.');
+  if (!betrag || parseFloat(betrag) <= 0) return fehler('Bitte einen gültigen Betrag angeben.');
+  if (!belegnummer || !/^\d{3}$/.test(belegnummer)) return fehler('Bitte genau 3 Ziffern der Belegnummer angeben (z.B. 123).');
+  if (scanState.laufend) return fehler('Der Beleg wird noch gelesen – bitte einen Moment warten.');
+  if (!gewaehlt && !scanState.file && !hatExistingFile && !scanState.token) return fehler('Bitte einen Beleg (Bild oder PDF) hochladen.');
+
+  var felder = {
+    datum: datum, belegnummer: belegnummer, betrag: betrag,
+    geschaeft: document.getElementById('feldGeschaeft').value,
+    notiz: document.getElementById('feldNotiz').value,
+    waehrung: document.getElementById('feldWaehrung').value
+  };
+  var hauptFile = gewaehlt || scanState.file || null;       // bereits verkleinert
+  var scanToken = scanState.token;                            // Foto liegt schon auf dem Server (spart Upload)
+  var scanZeit = Date.now();
+  var zusatz = zusatzNeu.slice();
+  var entfernen = zusatzEntfernen.slice();
+  var clientId = id ? null : (aktuelleClientId = aktuelleClientId || neueId());
 
   var btn = document.getElementById('btnSpeichern');
   btn.disabled = true;
 
-  var formData = new FormData();
-  formData.append('datum', datum);
-  formData.append('belegnummer', belegnummer);
-  formData.append('geschaeft', document.getElementById('feldGeschaeft').value);
-  formData.append('betrag', betrag);
-  formData.append('notiz', document.getElementById('feldNotiz').value);
-  formData.append('waehrung', document.getElementById('feldWaehrung').value);
-  if (deleteFileFlag) formData.append('deleteFile', 'true');
-  // Foto wurde bereits beim Scan hochgeladen – nur noch das Kürzel mitschicken (spart Upload bei langsamem Internet)
-  var nutzeScan = !!scanState.token;
-  if (nutzeScan) formData.append('scanToken', scanState.token);
+  function formDataBauen(opt) {
+    var fd = new FormData();
+    Object.keys(felder).forEach(function(k) { fd.append(k, felder[k]); });
+    if (clientId) fd.append('clientId', clientId);
+    if (opt.duplikatOk) fd.append('duplikatOk', '1');
+    if (scanToken && !opt.ohneToken) fd.append('scanToken', scanToken);
+    else if (hauptFile) fd.append('datei', hauptFile);
+    zusatz.forEach(function(f) { fd.append('zusatz', f); });
+    if (id && entfernen.length) fd.append('entferneFotos', JSON.stringify(entfernen));
+    return fd;
+  }
 
-  function senden(fileToSend) {
-    if (fileToSend) formData.append('datei', fileToSend);
+  function fertig() { btn.disabled = false; btn.textContent = 'Speichern'; }
+
+  function netzwerkfehler() {
+    fertig();
+    if (id) { zeigeToast('Keine Verbindung – Änderung nicht gespeichert. Bitte später erneut versuchen.', 'error'); return; }
+    // Neuer Beleg: in die Warteschlange legen, wird automatisch gesendet sobald das Internet wieder da ist
+    queueHinzufuegen({ clientId: clientId, felder: felder, haupt: hauptFile, zusatz: zusatz, scanToken: scanToken, scanZeit: scanZeit, ts: Date.now() })
+      .then(function() {
+        aktuelleClientId = null;
+        schliesseModal();
+        zeigeToast('Kein Internet – der Beleg wird automatisch gesendet, sobald wieder Verbindung besteht.', '');
+      })
+      .catch(function() { zeigeToast('Keine Verbindung und der Beleg konnte nicht zwischengespeichert werden.', 'error'); });
+  }
+
+  function senden(opt) {
+    opt = opt || {};
     btn.textContent = 'Wird hochgeladen...';
     var xhr = new XMLHttpRequest();
-    var url = id ? '/api/belege/' + id : '/api/belege';
-    xhr.open(id ? 'PUT' : 'POST', url, true);
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== 4) return;
-      btn.disabled = false;
-      btn.textContent = 'Speichern';
-      try {
-        var data = JSON.parse(xhr.responseText);
-        if (xhr.status !== 200 && xhr.status !== 201) {
-          zeigeToast(data.error || 'Fehler beim Speichern', 'error');
-          return;
-        }
+    xhr.open(id ? 'PUT' : 'POST', id ? '/api/belege/' + id : '/api/belege', true);
+    xhr.timeout = 180000;
+    xhr.onload = function() {
+      var data = {};
+      try { data = JSON.parse(xhr.responseText); } catch (err) {}
+      if (xhr.status === 200 || xhr.status === 201) {
+        fertig();
+        aktuelleClientId = null;
         schliesseModal();
         ladeBelege();
         ladeStatistiken();
         zeigeToast(id ? 'Beleg aktualisiert' : 'Beleg gespeichert', 'success');
-      } catch(e) {
-        zeigeToast('Fehler beim Speichern', 'error');
+      } else if (xhr.status === 409 && data.duplikat) {
+        fertig();
+        if (confirm(data.error + '\n\nTrotzdem speichern?')) { btn.disabled = true; senden({ duplikatOk: true, ohneToken: opt.ohneToken }); }
+      } else if (xhr.status === 400 && scanToken && !opt.ohneToken && hauptFile && /Datei/.test(data.error || '')) {
+        senden({ duplikatOk: opt.duplikatOk, ohneToken: true }); // Scan abgelaufen -> Foto direkt senden
+      } else if (xhr.status === 0 || xhr.status >= 502) {
+        netzwerkfehler();
+      } else {
+        fertig();
+        zeigeToast(data.error || 'Fehler beim Speichern', 'error');
       }
     };
-    xhr.send(formData);
+    xhr.onerror = netzwerkfehler;
+    xhr.ontimeout = netzwerkfehler;
+    xhr.send(formDataBauen(opt));
   }
-
-  if (nutzeScan) {
-    senden(null);
-  } else if (dateiFile && dateiFile.type.startsWith('image/') && dateiFile.size > 400 * 1024) {
-    btn.textContent = 'Bild wird komprimiert...';
-    komprimieresBild(dateiFile, function(compressed, wurdeKomprimiert) {
-      if (wurdeKomprimiert) {
-        zeigeToast('Bild komprimiert: ' + Math.round(compressed.size / 1024) + ' KB', '');
-      }
-      senden(compressed);
-    });
-  } else {
-    senden(dateiFile || null);
-  }
+  senden({});
 }
 
 function loescheBeleg(id) {
-  if (!confirm('Beleg wirklich löschen?')) return;
+  if (!confirm('Beleg in den Papierkorb verschieben?\n(Verwaltung/Admin können ihn dort 30 Tage lang wiederherstellen.)')) return;
   var xhr = new XMLHttpRequest();
   xhr.open('DELETE', '/api/belege/' + id, true);
   xhr.onreadystatechange = function() {
@@ -413,7 +455,7 @@ function loescheBeleg(id) {
     }
     ladeBelege();
     ladeStatistiken();
-    zeigeToast('Beleg gelöscht', 'success');
+    zeigeToast('Beleg in den Papierkorb verschoben', 'success');
   };
   xhr.send();
 }
@@ -452,6 +494,7 @@ function autoInfoHTML(b) {
   if (b.auto_belegnummer) felder.push('Nr.');
   if (b.auto_betrag) felder.push('Betrag');
   if (b.auto_waehrung) felder.push('Währung');
+  if (b.auto_geschaeft) felder.push('Geschäft');
   if (!felder.length) return '<div class="card-auto card-auto-manuell">Alles von Hand eingetragen</div>';
   return '<div class="card-auto">Automatisch gelesen: ' + felder.join(', ') + '</div>';
 }
@@ -488,6 +531,7 @@ function kartHTML(b) {
         (b.belegnummer ? '<span class="card-nr">Nr. …' + escapeHtml(b.belegnummer) + '</span>' : '') +
         '<span class="badge status-' + (b.status || 'ausstehend') + '">' +
           (istEingetragen ? '✓ Eingetragen' : 'Ausstehend') + '</span>' +
+        ((b.zusatzFotos && b.zusatzFotos.length) ? '<span class="badge verif-nein" title="Weitere Fotos zu diesem Beleg">+' + b.zusatzFotos.length + ' Foto' + (b.zusatzFotos.length > 1 ? 's' : '') + '</span>' : '') +
         (b.verifiziert ? '<span class="badge verif-ja" title="Datum und Belegnummer wurden aus dem Foto gelesen">✓ Verifiziert</span>'
                        : '<span class="badge verif-nein" title="Von Hand eingetragen">Manuell</span>') +
       '</div>' +
@@ -505,6 +549,8 @@ function kartHTML(b) {
 // ===== Modal =====
 function oeffneModal(id) {
   deleteFileFlag = false;
+  zusatzNeu = []; zusatzEntfernen = []; zusatzBestehend = [];
+  aktuelleClientId = null;
   var overlay = document.getElementById('modalOverlay');
   var form = document.getElementById('formBeleg');
   form.reset();
@@ -528,6 +574,7 @@ function oeffneModal(id) {
       document.getElementById('existingFileName').textContent = b.dateiname;
       document.getElementById('existingFile').classList.remove('hidden');
     }
+    zusatzBestehend = (b.zusatzFotos || []).slice();
   } else {
     document.getElementById('modalTitel').textContent = 'Neuer Beleg';
     document.getElementById('feldDatum').value = new Date().toISOString().slice(0, 10);
@@ -535,6 +582,7 @@ function oeffneModal(id) {
   }
 
   document.getElementById('formError').classList.add('hidden');
+  zeigeZusatzListe();
   overlay.classList.add('active');
 }
 
@@ -556,7 +604,8 @@ function oeffnePreview(id) {
 
   var mediaHTML = '';
   if (istBild) {
-    mediaHTML = '<img src="/uploads/' + b.dateipfad + '" alt="Beleg">';
+    mediaHTML = '<img src="/uploads/' + b.dateipfad + '" alt="Beleg">' +
+      (b.zusatzFotos || []).map(function(f, i) { return '<img src="/uploads/' + f.dateipfad + '" alt="Beleg, Foto ' + (i + 2) + '" style="margin-top:12px;">'; }).join('');
   } else if (istPdf) {
     mediaHTML = '<iframe src="/uploads/' + b.dateipfad + '" title="PDF Beleg"></iframe>';
   } else {
@@ -581,7 +630,8 @@ function oeffnePreview(id) {
         '<div class="preview-info-label">Notiz</div>' +
         '<div class="preview-info-value">' + escapeHtml(b.notiz) + '</div>' +
       '</div>' : '') +
-    '</div>' + mediaHTML;
+    '</div>' + mediaHTML +
+    (istBild ? '' : (b.zusatzFotos || []).map(function(f) { return '<img src="/uploads/' + f.dateipfad + '" alt="Weiteres Foto" style="margin-top:12px;">'; }).join(''));
 
   overlay.classList.add('active');
 }
@@ -627,11 +677,11 @@ function loescheDateiVorschau() {
 
 // ===== Beleg-Scan =====
 function setzeScanZurueck() {
-  scanState = { token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, laufend: false };
+  scanState = { token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, geschaeft: null, file: null, laufend: false };
   var st = document.getElementById('scanStatus');
   if (st) { st.className = 'scan-status hidden'; st.textContent = ''; }
   zeigeScanDetails('');
-  ['hintDatum', 'hintBelegnummer', 'hintBetrag'].forEach(function(id) {
+  ['hintDatum', 'hintBelegnummer', 'hintBetrag', 'hintGeschaeft'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
@@ -677,6 +727,7 @@ function aktualisiereScanHinweise() {
   var betragOk = scanState.betrag != null && Math.abs(parseFloat(document.getElementById('feldBetrag').value) - scanState.betrag) < 0.005 &&
     (!scanState.waehrung || document.getElementById('feldWaehrung').value === scanState.waehrung);
   document.getElementById('hintBetrag').classList.toggle('hidden', !betragOk);
+  document.getElementById('hintGeschaeft').classList.toggle('hidden', !(scanState.geschaeft && document.getElementById('feldGeschaeft').value.trim() === scanState.geschaeft.trim()));
   var datumOk = !!scanState.datum && datum === scanState.datum;
   var nrOk = !!scanState.belegnummer && nr === scanState.belegnummer;
   document.getElementById('hintDatum').classList.toggle('hidden', !datumOk);
@@ -711,6 +762,7 @@ function verarbeiteDatei(file) {
       dt.items.add(klein);
       document.getElementById('feldDatei').files = dt.files;
     } catch (e) {}
+    scanState.file = klein;
     zeigeVorschau(klein);
     zeigeToast('Foto verkleinert: ' + Math.round(klein.size / 1024) + ' KB', '');
     scanneBild(klein);
@@ -741,6 +793,8 @@ function scanneBild(file) {
       scanState.belegnummer = data.belegnummer;
       scanState.betrag = data.betrag != null ? data.betrag : null;
       scanState.waehrung = data.waehrung || null;
+      scanState.geschaeft = data.geschaeft || null;
+      if (data.geschaeft && !document.getElementById('feldGeschaeft').value.trim()) document.getElementById('feldGeschaeft').value = data.geschaeft;
       if (data.betrag != null) document.getElementById('feldBetrag').value = data.betrag.toFixed(2);
       if (data.waehrung) setWaehrung(data.waehrung);
       if (data.datum) document.getElementById('feldDatum').value = data.datum;
@@ -936,7 +990,7 @@ function zeigeExcelTabelle(b, data, hatRechte) {
 function ladeXLSXUndRendere(b) {
   if (typeof XLSX !== 'undefined') { fetchUndRendereExcel(b); return; }
   var script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  script.src = '/vendor/xlsx.full.min.js';
   script.onload = function() { fetchUndRendereExcel(b); };
   script.onerror = function() {
     var t = document.getElementById(b.key + 'Tabelle');
@@ -1034,4 +1088,297 @@ function loeschenExcel(b) {
     else { zeigeToast('Fehler beim Löschen', 'error'); }
   };
   xhr.send();
+}
+
+
+// ===== Weitere Fotos zu einem Beleg =====
+function initZusatzfotos() {
+  document.getElementById('feldZusatz').addEventListener('change', function(e) {
+    var f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (zusatzNeu.length + zusatzBestehend.length >= MAX_ZUSATZ) { zeigeToast('Maximal ' + MAX_ZUSATZ + ' weitere Fotos pro Beleg', 'error'); return; }
+    komprimieresBild(f, function(klein) {
+      zusatzNeu.push(klein);
+      zeigeZusatzListe();
+    }, { immer: true, maxDim: 2400, qualitaet: 0.7 });
+  });
+}
+
+function zeigeZusatzListe() {
+  var ul = document.getElementById('zusatzListe');
+  if (!ul) return;
+  ul.innerHTML = '';
+  function eintrag(text, onRemove) {
+    var li = document.createElement('li');
+    var span = document.createElement('span');
+    span.textContent = text;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn-remove-file'; b.setAttribute('aria-label', 'Foto entfernen'); b.innerHTML = '&times;';
+    b.addEventListener('click', onRemove);
+    li.appendChild(span); li.appendChild(b); ul.appendChild(li);
+  }
+  zusatzBestehend.forEach(function(f, i) {
+    eintrag((f.dateiname || 'Foto') + ' (gespeichert)', function() { zusatzEntfernen.push(f.id); zusatzBestehend.splice(i, 1); zeigeZusatzListe(); });
+  });
+  zusatzNeu.forEach(function(f, i) {
+    eintrag(f.name + ' (' + Math.round(f.size / 1024) + ' KB)', function() { zusatzNeu.splice(i, 1); zeigeZusatzListe(); });
+  });
+}
+
+// ===== Menü je nach Rolle =====
+function istPrivilegiert() {
+  var r = ((currentUser && currentUser.rolle) || '').split(',').map(function(x) { return x.trim(); });
+  return r.indexOf('admin') >= 0 || r.indexOf('verwaltung') >= 0;
+}
+function istAdminRolle() {
+  return ((currentUser && currentUser.rolle) || '').split(',').map(function(x) { return x.trim(); }).indexOf('admin') >= 0;
+}
+function richteMenueEin() {
+  if (istPrivilegiert()) {
+    document.getElementById('sidebarExport').classList.remove('hidden');
+    document.getElementById('sidebarPapierkorb').classList.remove('hidden');
+  }
+  if (!istAdminRolle()) document.getElementById('sidebarPin').classList.remove('hidden');
+}
+
+// ===== PIN ändern, Papierkorb, Export =====
+function zeigeModal(id) { document.getElementById(id).classList.add('active'); }
+function schliesseWeitereModale() {
+  ['pinOverlay', 'papierkorbOverlay', 'exportOverlay'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.classList.remove('active');
+  });
+}
+
+function initPinPapierkorbExport() {
+  ['pin', 'papierkorb', 'export'].forEach(function(k) {
+    document.getElementById(k + 'Close').addEventListener('click', schliesseWeitereModale);
+    document.getElementById(k + 'Overlay').addEventListener('click', function(e) { if (e.target === this) schliesseWeitereModale(); });
+  });
+
+  // --- PIN ---
+  document.getElementById('sidebarPin').addEventListener('click', function() {
+    schliesseSidebar();
+    ['pinAlt', 'pinNeu', 'pinNeu2'].forEach(function(i) { document.getElementById(i).value = ''; });
+    document.getElementById('pinError').classList.add('hidden');
+    zeigeModal('pinOverlay');
+    document.getElementById('pinAlt').focus();
+  });
+  document.getElementById('pinAbbrechen').addEventListener('click', schliesseWeitereModale);
+  document.getElementById('pinSpeichern').addEventListener('click', function() {
+    var err = document.getElementById('pinError');
+    function f(t) { err.textContent = t; err.classList.remove('hidden'); }
+    var alt = document.getElementById('pinAlt').value, neu = document.getElementById('pinNeu').value, neu2 = document.getElementById('pinNeu2').value;
+    if (!/^\d{4}$/.test(neu)) return f('Der neue PIN muss genau 4 Ziffern haben.');
+    if (neu !== neu2) return f('Die beiden neuen PINs stimmen nicht überein.');
+    var xhr = new XMLHttpRequest();
+    xhr.open('PUT', '/api/ich/pin', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onload = function() {
+      var d = {}; try { d = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status === 200) { schliesseWeitereModale(); zeigeToast('PIN geändert', 'success'); }
+      else f(d.error || 'PIN konnte nicht geändert werden.');
+    };
+    xhr.onerror = function() { f('Keine Verbindung.'); };
+    xhr.send(JSON.stringify({ pinAlt: alt, pinNeu: neu }));
+  });
+
+  // --- Papierkorb ---
+  document.getElementById('sidebarPapierkorb').addEventListener('click', function() { schliesseSidebar(); ladePapierkorb(); zeigeModal('papierkorbOverlay'); });
+
+  // --- Export ---
+  document.getElementById('sidebarExport').addEventListener('click', function() {
+    schliesseSidebar();
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/einstellungen', true);
+    xhr.onload = function() {
+      try {
+        var d = JSON.parse(xhr.responseText);
+        if (d.aktive_periode) { exportPeriode = d.aktive_periode; document.getElementById('exportVon').value = d.aktive_periode.von; document.getElementById('exportBis').value = d.aktive_periode.bis; }
+        else { exportPeriode = null; }
+        document.getElementById('exportPeriode').disabled = !exportPeriode;
+      } catch (e) {}
+    };
+    xhr.send();
+    zeigeModal('exportOverlay');
+  });
+  document.getElementById('exportAbbrechen').addEventListener('click', schliesseWeitereModale);
+  document.getElementById('exportPeriode').addEventListener('click', function() {
+    if (!exportPeriode) return;
+    document.getElementById('exportVon').value = exportPeriode.von; document.getElementById('exportBis').value = exportPeriode.bis;
+  });
+  document.getElementById('exportAlles').addEventListener('click', function() { document.getElementById('exportVon').value = ''; document.getElementById('exportBis').value = ''; });
+  document.getElementById('exportLos').addEventListener('click', function() {
+    var p = new URLSearchParams();
+    var v = document.getElementById('exportVon').value, b = document.getElementById('exportBis').value;
+    if (v) p.append('von', v); if (b) p.append('bis', b);
+    p.append('dezimal', document.getElementById('exportDezimal').value);
+    window.location.href = '/api/export/belege.csv?' + p.toString();
+    zeigeToast('Export wird heruntergeladen …', 'success');
+  });
+}
+var exportPeriode = null;
+
+function ladePapierkorb() {
+  var box = document.getElementById('papierkorbInhalt');
+  box.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:30px 0;">Wird geladen...</p>';
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/papierkorb', true);
+  xhr.onload = function() {
+    var liste = [];
+    try { liste = JSON.parse(xhr.responseText); } catch (e) {}
+    if (xhr.status !== 200) { box.innerHTML = '<p style="color:var(--danger);text-align:center;">Papierkorb konnte nicht geladen werden.</p>'; return; }
+    if (!liste.length) {
+      box.innerHTML = '<div style="text-align:center;padding:30px 20px;"><svg viewBox="0 0 120 72" width="96" height="58" aria-hidden="true" style="margin-bottom:12px;"><path d="M0 72L30 24l14 18 16-30 22 36 10-12 28 36z" fill="#6FA3BF"/><path d="M60 12L50 30l6-3 4 5 5-4 6 3z" fill="#fff"/><path d="M0 72L22 44l12 14 14-20 18 34z" fill="#2F4A3A"/></svg><p style="color:var(--text-muted);">Der Papierkorb ist leer.</p></div>';
+      return;
+    }
+    box.innerHTML = '<p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Gelöschte Belege bleiben 30 Tage hier und werden dann endgültig entfernt.</p>' +
+      liste.map(function(b) {
+        return '<div class="papierkorb-eintrag">' +
+          '<div><strong>' + escapeHtml(b.geschaeft || 'Beleg') + '</strong> · ' + formatBetrag(b.betrag, b.waehrung) +
+          '<div class="papierkorb-meta">' + formatDatum(b.datum) + ' · Nr. …' + escapeHtml(b.belegnummer || '–') + ' · ' + escapeHtml(b.benutzername) +
+          '<br>Gelöscht von ' + escapeHtml(b.geloescht_von || '?') + ' · noch ' + b.verbleibendeTage + ' Tage' +
+          (b.dateipfad ? ' · <a href="/uploads/' + encodeURIComponent(b.dateipfad) + '" target="_blank" rel="noopener">Foto ansehen</a>' : '') + '</div></div>' +
+          '<div class="papierkorb-aktionen">' +
+            '<button class="btn btn-secondary" data-pk="rest" data-id="' + b.id + '">Wiederherstellen</button>' +
+            (istAdminRolle() ? '<button class="btn btn-danger" data-pk="del" data-id="' + b.id + '">Endgültig löschen</button>' : '') +
+          '</div></div>';
+      }).join('');
+    box.querySelectorAll('[data-pk]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var del = btn.dataset.pk === 'del';
+        if (del && !confirm('Diesen Beleg ENDGÜLTIG löschen? Das kann nicht rückgängig gemacht werden.')) return;
+        var x = new XMLHttpRequest();
+        x.open(del ? 'DELETE' : 'POST', '/api/papierkorb/' + btn.dataset.id + (del ? '' : '/wiederherstellen'), true);
+        x.onload = function() {
+          if (x.status === 200) { zeigeToast(del ? 'Endgültig gelöscht' : 'Beleg wiederhergestellt', 'success'); ladePapierkorb(); ladeBelege(); ladeStatistiken(); }
+          else { var d = {}; try { d = JSON.parse(x.responseText); } catch (e) {} zeigeToast(d.error || 'Fehler', 'error'); }
+        };
+        x.send();
+      });
+    });
+  };
+  xhr.send();
+}
+
+// ===== Warteschlange für neue Belege (schlechtes/kein Internet) =====
+// Belege werden zuerst lokal im Browser (IndexedDB) gespeichert, falls das Senden scheitert, und später automatisch gesendet.
+var queueDbPromise = null;
+function queueDb() {
+  if (!queueDbPromise) {
+    queueDbPromise = new Promise(function(resolve, reject) {
+      if (!window.indexedDB) return reject(new Error('kein IndexedDB'));
+      var r = indexedDB.open('gibeli-queue', 1);
+      r.onupgradeneeded = function() { r.result.createObjectStore('belege', { keyPath: 'clientId' }); };
+      r.onsuccess = function() { resolve(r.result); };
+      r.onerror = function() { reject(r.error); };
+    });
+  }
+  return queueDbPromise;
+}
+function queueOp(modus, fn) {
+  return queueDb().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction('belege', modus);
+      var res = fn(tx.objectStore('belege'));
+      tx.oncomplete = function() { resolve(res && res.result); };
+      tx.onerror = function() { reject(tx.error); };
+    });
+  });
+}
+function queueHinzufuegen(e) { return queueOp('readwrite', function(st) { return st.put(e); }).then(function() { queueBannerAktualisieren(); setzeQueueTimer(); }); }
+function queueAlle() { return queueOp('readonly', function(st) { return st.getAll(); }).then(function(r) { return r || []; }).catch(function() { return []; }); }
+function queueEntfernen(id) { return queueOp('readwrite', function(st) { return st.delete(id); }); }
+
+var queueLaeuft = false, queueTimer = null;
+function setzeQueueTimer() { if (!queueTimer) queueTimer = setInterval(verarbeiteQueue, 30000); }
+
+function initQueue() {
+  window.addEventListener('online', verarbeiteQueue);
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) verarbeiteQueue(); });
+  queueAlle().then(function(l) { if (l.length) { setzeQueueTimer(); verarbeiteQueue(); } queueBannerAktualisieren(); });
+}
+
+function queueBannerAktualisieren() {
+  queueAlle().then(function(liste) {
+    var banner = document.getElementById('queueBanner');
+    if (!liste.length) { banner.classList.add('hidden'); banner.innerHTML = ''; return; }
+    var fehlerhaft = liste.filter(function(e) { return e.fehler; });
+    var wartend = liste.length - fehlerhaft.length;
+    var html = '';
+    if (wartend) html += '<div>⏳ ' + wartend + ' Beleg' + (wartend > 1 ? 'e warten' : ' wartet') + ' auf Versand (kein Internet). Wird automatisch gesendet.</div>';
+    fehlerhaft.forEach(function(e) {
+      html += '<div class="queue-fehler">⚠ Beleg ' + escapeHtml(e.felder.datum) + ' (' + escapeHtml(e.felder.betrag) + '): ' + escapeHtml(e.fehler) +
+        ' <button type="button" class="btn btn-secondary" data-q="nochmal" data-id="' + escapeHtml(e.clientId) + '">' + (e.duplikat ? 'Trotzdem senden' : 'Nochmal versuchen') + '</button>' +
+        ' <button type="button" class="btn btn-danger" data-q="weg" data-id="' + escapeHtml(e.clientId) + '">Verwerfen</button></div>';
+    });
+    banner.innerHTML = html;
+    banner.classList.remove('hidden');
+    banner.querySelectorAll('[data-q]').forEach(function(b) {
+      b.addEventListener('click', function() {
+        var id = b.dataset.id;
+        if (b.dataset.q === 'weg') { if (confirm('Diesen Beleg verwerfen? Er wird nicht gesendet.')) queueEntfernen(id).then(queueBannerAktualisieren); return; }
+        queueOp('readwrite', function(st) { return st.get(id); }).then(function(e) {
+          if (!e) return;
+          e.fehler = null; if (e.duplikat) e.duplikatOk = true;
+          return queueHinzufuegen(e).then(verarbeiteQueue);
+        });
+      });
+    });
+  });
+}
+
+function verarbeiteQueue() {
+  if (queueLaeuft || navigator.onLine === false) return;
+  queueLaeuft = true;
+  queueAlle().then(function(liste) {
+    var offen = liste.filter(function(e) { return !e.fehler; });
+    var erfolg = false;
+    function naechster(i) {
+      if (i >= offen.length) { queueLaeuft = false; if (erfolg) { ladeBelege(); ladeStatistiken(); zeigeToast('Wartende Belege wurden gesendet', 'success'); } queueBannerAktualisieren(); return; }
+      sendeQueueEintrag(offen[i], function(ergebnis) {
+        if (ergebnis === 'netz') { queueLaeuft = false; queueBannerAktualisieren(); return; } // später erneut versuchen
+        if (ergebnis === 'ok') erfolg = true;
+        naechster(i + 1);
+      });
+    }
+    naechster(0);
+  }).catch(function() { queueLaeuft = false; });
+}
+
+function sendeQueueEintrag(e, cb) {
+  var tokenGueltig = e.scanToken && !e.ohneToken && (Date.now() - (e.scanZeit || 0)) < 25 * 60 * 1000;
+  var fd = new FormData();
+  Object.keys(e.felder).forEach(function(k) { fd.append(k, e.felder[k]); });
+  fd.append('clientId', e.clientId);
+  if (e.duplikatOk) fd.append('duplikatOk', '1');
+  if (tokenGueltig) fd.append('scanToken', e.scanToken); else if (e.haupt) fd.append('datei', e.haupt, e.haupt.name || 'beleg.jpg');
+  (e.zusatz || []).forEach(function(f) { fd.append('zusatz', f, f.name || 'zusatz.jpg'); });
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/belege', true);
+  xhr.timeout = 180000;
+  xhr.onload = function() {
+    var d = {}; try { d = JSON.parse(xhr.responseText); } catch (x) {}
+    if (xhr.status === 200 || xhr.status === 201) { queueEntfernen(e.clientId).then(function() { cb('ok'); }); return; }
+    if (xhr.status === 401) { window.location.href = '/login.html'; return; }
+    if (xhr.status === 0 || xhr.status >= 502) return cb('netz');
+    if (xhr.status === 400 && tokenGueltig && e.haupt) { e.ohneToken = true; queueOp('readwrite', function(st) { return st.put(e); }).then(function() { sendeQueueEintrag(e, cb); }); return; }
+    e.fehler = d.error || ('Fehler ' + xhr.status);
+    e.duplikat = !!d.duplikat;
+    queueOp('readwrite', function(st) { return st.put(e); }).then(function() { cb('fehler'); });
+  };
+  xhr.onerror = function() { cb('netz'); };
+  xhr.ontimeout = function() { cb('netz'); };
+  xhr.send(fd);
+}
+
+// ===== App-Installation / Offline-Hülle =====
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').then(function() { return navigator.serviceWorker.ready; }).then(function(reg) {
+      // Oberfläche für den Offline-Start zwischenspeichern (nur die App-Dateien, keine Daten)
+      if (reg.active) reg.active.postMessage({ typ: 'huelle', urls: ['/', '/app.js', '/style.css', '/login.css', '/vendor/xlsx.full.min.js',
+        '/fonts/inter-latin-500-normal.woff2', '/fonts/inter-latin-700-normal.woff2', '/fonts/fraunces-latin-700-normal.woff2'] });
+    }).catch(function() {});
+  });
 }

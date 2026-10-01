@@ -6,9 +6,8 @@
   <title>Anmelden – Ferienhaus Gibeli</title>
   <meta name="theme-color" content="#2F4A3A">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232F4A3A'/%3E%3Cpath d='M3 26L13 8l4.5 7.5L21 10l8 16z' fill='%236FA3BF'/%3E%3Cpath d='M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z' fill='%23fff'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="login.css">
 </head>
 <body class="login-page">
@@ -114,6 +113,9 @@
       };
       xhr.send(JSON.stringify({ benutzername: benutzername, pin: pin }));
     }
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) window.addEventListener('load', function() { navigator.serviceWorker.register('/sw.js').catch(function() {}); });
   </script>
 </body>
 </html>

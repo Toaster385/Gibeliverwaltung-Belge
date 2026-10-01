@@ -6,9 +6,8 @@
   <title>Belegverwaltung – Ferienhaus Gibeli</title>
   <meta name="theme-color" content="#2F4A3A">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232F4A3A'/%3E%3Cpath d='M3 26L13 8l4.5 7.5L21 10l8 16z' fill='%236FA3BF'/%3E%3Cpath d='M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z' fill='%23fff'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="login.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -38,6 +37,9 @@
     <nav class="sidebar-menu">
       <button class="sidebar-item" id="sidebarBelegung"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg> Aktuelle Belegung</button>
       <button class="sidebar-item" id="sidebarGerichte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7 0 1.5 1 2.500 3 3v8"/></svg> Gerichte</button>
+      <button class="sidebar-item hidden" id="sidebarExport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Export (CSV)</button>
+      <button class="sidebar-item hidden" id="sidebarPapierkorb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg> Papierkorb</button>
+      <button class="sidebar-item hidden" id="sidebarPin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/></svg> PIN ändern</button>
       <div class="sidebar-divider"></div>
       <button class="sidebar-item sidebar-item-danger" id="sidebarLogout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4"/><path d="M16 8l4 4-4 4M20 12H9"/></svg> Abmelden</button>
     </nav>
@@ -47,6 +49,9 @@
   <div id="kasseBanner" class="kasse-banner hidden" role="status">
     Die Kasse ist geschlossen – keine Änderungen möglich.
   </div>
+
+  <!-- Beleg-Warteschlange (kein Internet) -->
+  <div id="queueBanner" class="queue-banner hidden" role="status"></div>
 
   <!-- Stats Bar -->
   <div class="stats-bar" id="statsBar">
@@ -132,6 +137,12 @@
               </div>
             </div>
             <div id="scanStatus" class="scan-status hidden" role="status" aria-live="polite"></div>
+            <div class="zusatz-block">
+              <label class="btn btn-secondary zusatz-btn" for="feldZusatz">+ Weiteres Foto (z.B. 2. Seite)
+                <input type="file" id="feldZusatz" accept="image/*" capture="environment" class="sr-file">
+              </label>
+              <ul id="zusatzListe" class="zusatz-liste"></ul>
+            </div>
             <div id="existingFile" class="existing-file hidden">
               <span id="existingFileName"></span>
               <button type="button" class="btn-link" id="btnDeleteFile">Datei entfernen</button>
@@ -162,6 +173,7 @@
           <div class="form-group form-full">
             <label for="feldGeschaeft">Geschäft</label>
             <input type="text" id="feldGeschaeft" class="input-field" placeholder="z.B. REWE, Amazon...">
+            <small class="field-hint hidden" id="hintGeschaeft">✓ aus dem Foto gelesen</small>
           </div>
           <div class="form-group form-full">
             <label for="feldNotiz">Notiz</label>
@@ -185,6 +197,47 @@
         <button class="modal-close" id="previewClose" aria-label="Schliessen">&times;</button>
       </div>
       <div class="preview-content" id="previewContent"></div>
+    </div>
+  </div>
+
+  <!-- Modal: PIN ändern -->
+  <div class="modal-overlay" id="pinOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pinTitel">
+      <div class="modal-header"><h2 id="pinTitel">PIN ändern</h2><button class="modal-close" id="pinClose" aria-label="Schliessen">&times;</button></div>
+      <form id="formPin" novalidate onsubmit="return false">
+        <div class="form-group"><label for="pinAlt">Aktueller PIN</label><input type="password" id="pinAlt" class="input-field" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></div>
+        <div class="form-group"><label for="pinNeu">Neuer PIN (4 Ziffern)</label><input type="password" id="pinNeu" class="input-field" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></div>
+        <div class="form-group"><label for="pinNeu2">Neuen PIN wiederholen</label><input type="password" id="pinNeu2" class="input-field" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></div>
+        <div class="form-error hidden" id="pinError" role="alert"></div>
+        <div class="modal-actions"><button type="button" class="btn btn-secondary" id="pinAbbrechen">Abbrechen</button><button type="button" class="btn btn-primary" id="pinSpeichern">PIN speichern</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Papierkorb -->
+  <div class="modal-overlay" id="papierkorbOverlay">
+    <div class="modal modal-belegung" role="dialog" aria-modal="true" aria-labelledby="papierkorbTitel">
+      <div class="modal-header"><h2 id="papierkorbTitel">Papierkorb</h2><button class="modal-close" id="papierkorbClose" aria-label="Schliessen">&times;</button></div>
+      <div id="papierkorbInhalt" style="padding:20px;overflow:auto;max-height:65vh;"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Export -->
+  <div class="modal-overlay" id="exportOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="exportTitel">
+      <div class="modal-header"><h2 id="exportTitel">Export für die Buchhaltung</h2><button class="modal-close" id="exportClose" aria-label="Schliessen">&times;</button></div>
+      <form id="formExport" novalidate onsubmit="return false">
+        <p style="font-size:14px;color:var(--text-muted);margin-bottom:14px;">Erzeugt eine CSV-Datei, die direkt in Excel geöffnet werden kann (Datum, Nummer, Betrag, Währung, Status, Verifiziert, …).</p>
+        <div class="form-group"><label for="exportVon">Von</label><input type="date" id="exportVon" class="input-field"></div>
+        <div class="form-group"><label for="exportBis">Bis</label><input type="date" id="exportBis" class="input-field"></div>
+        <div class="export-schnell">
+          <button type="button" class="btn btn-secondary" id="exportPeriode">Aktive Periode</button>
+          <button type="button" class="btn btn-secondary" id="exportAlles">Alles</button>
+        </div>
+        <div class="form-group" style="margin-top:14px"><label for="exportDezimal">Dezimalzeichen</label>
+          <select id="exportDezimal" class="input-field"><option value="punkt">Punkt (12.50) – Schweiz</option><option value="komma">Komma (12,50) – Deutschland</option></select></div>
+        <div class="modal-actions"><button type="button" class="btn btn-secondary" id="exportAbbrechen">Abbrechen</button><button type="button" class="btn btn-primary" id="exportLos">CSV herunterladen</button></div>
+      </form>
     </div>
   </div>
 

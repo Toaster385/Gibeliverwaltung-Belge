@@ -483,3 +483,25 @@ form { padding: 20px; }
 
 .card-auto { margin-top: 10px; font-size: 13px; font-weight: 600; color: #1F4E66; background: var(--blau-hell); border: 1px solid var(--blau); border-radius: 8px; padding: 4px 10px; display: inline-block; }
 .card-auto-manuell { color: var(--text-muted); background: #EEEBE4; border-color: var(--border); font-weight: 500; }
+
+/* ===== Warteschlange / Weitere Fotos / Papierkorb / Export ===== */
+.queue-banner { max-width: 1200px; width: calc(100% - 32px); margin: 0 auto 14px; padding: 12px 16px; background: var(--holz-hell); color: #6E4829; border: 1px solid #DCC4AC; border-radius: var(--radius); font-size: 14px; font-weight: 600; display: grid; gap: 8px; }
+.queue-fehler { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--rot-dunkel); }
+.queue-fehler .btn { min-height: 36px; padding: 4px 12px; font-size: 13px; }
+
+.zusatz-block { margin-top: 12px; }
+.zusatz-btn { width: 100%; min-height: 48px; position: relative; }
+.zusatz-liste { list-style: none; display: grid; gap: 6px; margin-top: 8px; }
+.zusatz-liste li { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 6px 6px 12px; font-size: 14px; }
+.zusatz-liste .btn-remove-file { pointer-events: auto; margin-left: 0; }
+
+.papierkorb-eintrag { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px; margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.papierkorb-meta { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.papierkorb-aktionen { display: flex; gap: 8px; flex-wrap: wrap; }
+.papierkorb-aktionen .btn { min-height: 40px; padding: 6px 14px; font-size: 14px; }
+.export-schnell { display: flex; gap: 8px; flex-wrap: wrap; }
+.export-schnell .btn { min-height: 40px; padding: 6px 14px; font-size: 14px; }
+.export-schnell .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Toast darf umbrechen (lange Meldungen auf dem Handy) */
+.toast { white-space: normal; text-align: center; max-width: min(92vw, 520px); }

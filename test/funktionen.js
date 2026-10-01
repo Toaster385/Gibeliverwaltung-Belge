@@ -1,0 +1,156 @@
+// Funktionstest der Server-Funktionen (frische Daten): Sicherheit, Papierkorb, Duplikate, Protokoll, Export, Fotos
+//   npm run test:funktionen
+const { spawn } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const repo = path.join(__dirname, '..');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gibeli-fn-'));
+const PORT = 3921;
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC', 'base64');
+let fehler = 0;
+const kinder = [];
+process.on('exit', () => kinder.forEach(k => { try { k.kill(); } catch (e) {} }));
+const ok = (b, t) => { console.log((b ? '  ✓ ' : '  ✗ ') + t); if (!b) fehler++; };
+
+function starte(extraEnv = {}) {
+  const env = { ...process.env, PORT: String(PORT), DATA_DIR: path.join(tmp, 'data'), UPLOADS_DIR: path.join(tmp, 'uploads'), INITIAL_ADMIN_PASSWORD: 'Start-Passwort-1', ...extraEnv };
+  const p = spawn('node', ['server.js'], { env, cwd: repo }); kinder.push(p);
+  let log = ''; p.stdout.on('data', d => log += d); p.stderr.on('data', d => log += d);
+  return new Promise((res, rej) => {
+    const t = setInterval(async () => { try { await fetch(`http://localhost:${PORT}/healthz`); clearInterval(t); res({ p, log: () => log }); } catch (e) {} }, 200);
+    p.on('exit', c => { clearInterval(t); rej(new Error('Server beendet:\n' + log)); });
+    setTimeout(() => { clearInterval(t); rej(new Error('Timeout:\n' + log)); }, 30000);
+  });
+}
+async function api(cookie, method, url, body, form, ip) {
+  const opt = { method, headers: { cookie: cookie || '' } };
+  if (ip) opt.headers['x-forwarded-for'] = ip;
+  if (form) opt.body = form; else if (body) { opt.body = JSON.stringify(body); opt.headers['content-type'] = 'application/json'; }
+  const r = await fetch(`http://localhost:${PORT}${url}`, opt);
+  const buf = Buffer.from(await r.arrayBuffer());
+  let json = null; try { json = JSON.parse(buf.toString()); } catch (e) {}
+  return { status: r.status, headers: r.headers, cookie: (r.headers.get('set-cookie') || '').split(';')[0], json, text: buf.toString(), buf };
+}
+function beleg(felder, dateien = {}) {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(felder)) f.append(k, v);
+  if (dateien.haupt !== false) f.append('datei', new Blob([PNG], { type: 'image/png' }), 'haupt.png');
+  (dateien.zusatz || []).forEach((n, i) => f.append('zusatz', new Blob([Buffer.concat([PNG, Buffer.from(String(i + 1))])], { type: 'image/png' }), n));
+  return f;
+}
+
+(async () => {
+  console.log('Start mit leerer Datenbank …');
+  let srv = await starte();
+  ok(/ERSTER START/.test(srv.log()) || true, 'Server startet');
+  const h = await api('', 'GET', '/healthz');
+  ok(h.status === 200 && h.json.status === 'ok', 'Healthcheck /healthz antwortet');
+  ok(h.headers.get('x-content-type-options') === 'nosniff' && h.headers.get('x-frame-options') === 'DENY', 'Sicherheits-Header gesetzt');
+
+  console.log('Anmeldung & Sicherheit');
+  let r = await api('', 'POST', '/api/login', { benutzername: 'Lio', passwort: 'Start-Passwort-1' });
+  ok(r.status === 200 && r.json.passwortAendern === true, 'Erster Admin (Lio) mit Start-Passwort, muss Passwort ändern');
+  let admin = r.cookie;
+  r = await api(admin, 'PUT', '/api/admin/profil', { passwortAktuell: 'Start-Passwort-1', passwortNeu: 'Mein-Neues-Passwort-9' });
+  ok(r.status === 200, 'Passwort geändert');
+  r = await api(admin, 'GET', '/api/admin/belege');
+  ok(r.status === 200, 'Danach voller Zugriff');
+  ok(!/Admin2|Admin3/.test(JSON.stringify((await api(admin, 'GET', '/api/admin/benutzer')).json)), 'Keine festen Zusatz-Admins (Admin2/Admin3) mehr');
+
+  await api(admin, 'POST', '/api/admin/benutzer', { benutzername: 'Anna', pin: '1111', rollen: ['gibeli-gast'] });
+  await api(admin, 'POST', '/api/admin/benutzer', { benutzername: 'Bert', pin: '2222', rollen: ['gibeli-gast'] });
+  await api(admin, 'POST', '/api/admin/benutzer', { benutzername: 'Vera', pin: '3333', rollen: ['verwaltung'] });
+  const login = async (n, pin, ip) => api('', 'POST', '/api/login', { benutzername: n, pin }, null, ip);
+  const anna = (await login('Anna', '1111', '10.0.0.1')).cookie, bert = (await login('Bert', '2222', '10.0.0.2')).cookie, vera = (await login('Vera', '3333', '10.0.0.3')).cookie;
+
+  // Login-Sperre
+  for (let i = 0; i < 5; i++) await login('Bert', '0000', '10.9.9.9');
+  r = await login('Bert', '2222', '10.9.9.9');
+  ok(r.status === 429 && /Minute/.test(r.json.error), 'Nach 5 Fehlversuchen wird gesperrt (auch mit richtigem PIN)');
+  r = await login('Bert', '2222', '10.0.0.77');
+  ok(r.status === 200, 'Derselbe Benutzer kann sich von einem anderen Gerät weiterhin anmelden (kein Aussperren per Fremdzugriff)');
+
+  console.log('Belege erfassen');
+  r = await api(anna, 'POST', '/api/belege', null, beleg({ datum: '2026-09-10', betrag: '25.50', waehrung: 'CHF', belegnummer: '123', geschaeft: 'Coop', clientId: 'c-1' }, { zusatz: ['seite2.png', 'seite3.png'] }));
+  ok(r.status === 201 && r.json.zusatzFotos.length === 2, 'Beleg mit 2 Zusatzfotos gespeichert');
+  const b1 = r.json;
+  r = await api(anna, 'POST', '/api/belege', null, beleg({ datum: '2026-09-10', betrag: '25.50', waehrung: 'CHF', belegnummer: '123', geschaeft: 'Coop', clientId: 'c-1' }));
+  ok(r.status === 200 && r.json.id === b1.id, 'Gleiche clientId (Wiederholung bei schlechtem Netz) erzeugt keinen zweiten Beleg');
+  r = await api(anna, 'POST', '/api/belege', null, beleg({ datum: '2026-09-10', betrag: '25.50', waehrung: 'CHF', belegnummer: '123', geschaeft: 'Coop', clientId: 'c-2' }));
+  ok(r.status === 409 && r.json.duplikat, 'Doppelter Beleg (Datum, Betrag, Nr.) wird erkannt');
+  r = await api(anna, 'POST', '/api/belege', null, beleg({ datum: '2026-09-10', betrag: '25.50', waehrung: 'CHF', belegnummer: '123', clientId: 'c-3', duplikatOk: '1' }));
+  ok(r.status === 201, 'Trotzdem speichern funktioniert nach Bestätigung');
+  const b2 = r.json;
+  r = await api(bert, 'POST', '/api/belege', null, beleg({ datum: '2026-09-11', betrag: '10', waehrung: 'EUR', belegnummer: '456', geschaeft: '=SUMME(A1)' }));
+  const b3 = r.json;
+
+  console.log('Zugriffsschutz auf Fotos');
+  r = await api(anna, 'GET', '/uploads/' + b1.dateipfad); ok(r.status === 200, 'Besitzer sieht sein Foto');
+  r = await api(anna, 'GET', '/uploads/' + b1.zusatzFotos[0].dateipfad); ok(r.status === 200, 'Besitzer sieht Zusatzfoto');
+  r = await api(bert, 'GET', '/uploads/' + b1.dateipfad); ok(r.status === 403, 'Anderer Gast darf das Foto NICHT sehen');
+  r = await api(vera, 'GET', '/uploads/' + b1.dateipfad); ok(r.status === 200, 'Verwaltung darf Fotos sehen');
+  r = await api('', 'GET', '/uploads/' + b1.dateipfad); ok(!/^image/.test(r.headers.get('content-type') || ''), 'Ohne Anmeldung kein Zugriff (Weiterleitung zur Anmeldung)');
+  r = await api(anna, 'GET', '/uploads/..%2fdata%2fbelege.db'); ok(r.status === 404 || r.status === 403, 'Kein Zugriff auf Dateien ausserhalb von uploads');
+
+  console.log('Bearbeiten, Papierkorb, Wiederherstellen');
+  const put = new FormData(); put.append('betrag', '30'); put.append('entferneFotos', JSON.stringify([b1.zusatzFotos[0].id]));
+  r = await api(anna, 'PUT', '/api/belege/' + b1.id, null, put);
+  ok(r.status === 200 && r.json.betrag === 30 && r.json.zusatzFotos.length === 1, 'Beleg bearbeiten + Zusatzfoto entfernen');
+  r = await api(anna, 'DELETE', '/api/belege/' + b2.id);
+  ok(r.status === 200 && r.json.papierkorb, 'Löschen verschiebt in den Papierkorb');
+  r = await api(anna, 'GET', '/api/belege');
+  ok(!r.json.some(b => b.id === b2.id), 'Gelöschter Beleg erscheint nicht mehr in der Liste');
+  r = await api(anna, 'GET', '/uploads/' + b2.dateipfad); ok(r.status === 403, 'Gelöschter Beleg: Foto nur noch für Verwaltung');
+  ok(fs.existsSync(path.join(tmp, 'uploads', b2.dateipfad)), 'Foto des gelöschten Belegs bleibt erhalten');
+  r = await api(anna, 'GET', '/api/papierkorb'); ok(r.status === 403, 'Gäste sehen den Papierkorb nicht');
+  r = await api(vera, 'GET', '/api/papierkorb');
+  ok(r.status === 200 && r.json.length === 1 && r.json[0].verbleibendeTage >= 29, 'Verwaltung sieht Papierkorb (30 Tage Frist)');
+  r = await api(vera, 'POST', `/api/papierkorb/${b2.id}/wiederherstellen`); ok(r.status === 200, 'Wiederherstellen');
+  r = await api(anna, 'GET', '/api/belege'); ok(r.json.some(b => b.id === b2.id), 'Wiederhergestellter Beleg ist zurück');
+  await api(anna, 'DELETE', '/api/belege/' + b2.id);
+  r = await api(vera, 'DELETE', `/api/papierkorb/${b2.id}`); ok(r.status === 403, 'Endgültig löschen nur für Admins');
+  r = await api(admin, 'DELETE', `/api/papierkorb/${b2.id}`); ok(r.status === 200 && !fs.existsSync(path.join(tmp, 'uploads', b2.dateipfad)), 'Admin löscht endgültig (Foto wird entfernt)');
+
+  console.log('Benutzer löschen = Belege in den Papierkorb');
+  const bertId = (await api(admin, 'GET', '/api/admin/benutzer')).json.find(u => u.benutzername === 'Bert').id;
+  r = await api(admin, 'DELETE', '/api/admin/benutzer/' + bertId);
+  ok(r.status === 200 && r.json.belegeImPapierkorb === 1, 'Beleg des gelöschten Benutzers landet im Papierkorb');
+  r = await api(vera, 'GET', '/api/papierkorb'); ok(r.json.length === 1 && r.json[0].benutzername === '(gelöschter Benutzer)', 'Papierkorb zeigt den Beleg');
+  r = await api(vera, 'POST', `/api/papierkorb/${b3.id}/wiederherstellen`); ok(r.status === 200, 'Beleg eines gelöschten Benutzers wiederherstellbar');
+
+  console.log('PIN selbst ändern');
+  r = await api(anna, 'PUT', '/api/ich/pin', { pinAlt: '9999', pinNeu: '4444' }); ok(r.status === 401, 'Falscher alter PIN wird abgelehnt');
+  r = await api(anna, 'PUT', '/api/ich/pin', { pinAlt: '1111', pinNeu: '4444' }); ok(r.status === 200, 'PIN geändert');
+  r = await login('Anna', '4444', '10.0.0.5'); ok(r.status === 200, 'Anmeldung mit neuem PIN');
+
+  console.log('Export & Protokoll');
+  r = await api(anna, 'GET', '/api/export/belege.csv'); ok(r.status === 403, 'Export nur für Verwaltung/Admin');
+  r = await api(vera, 'GET', '/api/export/belege.csv?von=2026-09-01&bis=2026-09-30&dezimal=komma');
+  ok(r.status === 200 && r.text.startsWith('﻿') && /25,50|30,00/.test(r.text) && r.text.includes('Summe EUR'), 'CSV-Export mit Summen');
+  ok(r.text.includes("'=SUMME(A1)"), 'CSV schützt vor Formel-Injection');
+  r = await api(vera, 'GET', '/api/admin/protokoll'); ok(r.status === 403, 'Protokoll nur für Admins');
+  r = await api(admin, 'GET', '/api/admin/protokoll?limit=500');
+  const akt = r.json.eintraege.map(e => e.aktion);
+  ok(['beleg_erstellt', 'beleg_geaendert', 'beleg_geloescht', 'beleg_wiederhergestellt', 'beleg_endgueltig_geloescht', 'benutzer_geloescht', 'export', 'login_gesperrt'].every(a => akt.includes(a)), 'Protokoll enthält alle wichtigen Aktionen: ' + [...new Set(akt)].join(', '));
+
+  console.log('Neustart: nichts geht verloren');
+  srv.p.kill(); await new Promise(r => setTimeout(r, 600));
+  srv = await starte();
+  r = await api('', 'POST', '/api/login', { benutzername: 'Lio', passwort: 'Mein-Neues-Passwort-9' }, null, '10.1.1.1');
+  ok(r.status === 200 && r.json.passwortAendern === false, 'Neues Admin-Passwort gilt nach Neustart, Lio wird nicht neu angelegt');
+  r = await api(r.cookie, 'GET', '/api/admin/belege'); ok(r.json.length === 2, 'Belege nach Neustart vorhanden (' + r.json.length + ')');
+
+  console.log('E-Mail-Backup (Testmodus)');
+  srv.p.kill(); await new Promise(r => setTimeout(r, 600));
+  srv = await starte({ SMTP_HOST: 'json', BACKUP_EMAIL_TO: 'test@example.com' });
+  const ad2 = (await api('', 'POST', '/api/login', { benutzername: 'Lio', passwort: 'Mein-Neues-Passwort-9' }, null, '10.1.1.2')).cookie;
+  r = await api(ad2, 'POST', '/api/backup/email'.replace('/api/backup', '/api/admin/backup')); ok(r.status === 200 && r.json.gesendetAn === 'test@example.com', 'Backup per E-Mail wird versendet');
+  r = await api(ad2, 'GET', '/api/admin/integritaet'); ok(r.json.email.konfiguriert && r.json.email.letzte, 'Status zeigt E-Mail-Backup');
+  srv.p.kill();
+
+  fs.rmSync(tmp, { recursive: true, force: true });
+  console.log(fehler ? `\nFEHLGESCHLAGEN: ${fehler} Prüfung(en)` : '\nALLE PRÜFUNGEN BESTANDEN');
+  process.exit(fehler ? 1 : 0);
+})().catch(e => { console.error('Testfehler:', e.message); try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (x) {} process.exit(1); });

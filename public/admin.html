@@ -6,9 +6,8 @@
   <title>Admin – Ferienhaus Gibeli</title>
   <meta name="theme-color" content="#2F4A3A">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232F4A3A'/%3E%3Cpath d='M3 26L13 8l4.5 7.5L21 10l8 16z' fill='%236FA3BF'/%3E%3Cpath d='M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z' fill='%23fff'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="login.css">
   <style>
     /* Admin-Bereich: gleicher Stil, dezent mit Holzbraun abgesetzt */
@@ -49,6 +48,13 @@
     .sicherheit-liste .ok::before { content: '✓'; color: var(--tanne); font-weight: 700; }
     .sicherheit-liste .bad::before { content: '✗'; color: var(--rot-dunkel); font-weight: 700; }
     .sicherheit-aktionen { display: flex; gap: 10px; flex-wrap: wrap; }
+    .main-section.zwang .admin-wrapper > .card, .main-section.zwang .section-toggles { display: none !important; }
+    .export-zeile { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 14px; align-items: center; }
+    @media (max-width: 700px) { .export-zeile { grid-template-columns: 1fr 1fr; } .export-zeile .btn-add { grid-column: 1 / -1; } }
+    .pk-eintrag { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; padding: 10px 0; border-bottom: 1px solid #EEE9DD; }
+    .pk-meta { font-size: 13px; color: var(--text-muted); }
+    .prot-tabelle td { font-size: 13px; vertical-align: top; }
+    .prot-details { white-space: pre-wrap; word-break: break-word; max-width: 420px; }
     .chip-auto { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--blau-hell); color: #1F4E66; border: 1px solid var(--blau); white-space: nowrap; vertical-align: middle; }
     .auto-legende { font-size: 13px; margin: -6px 0 12px; }
     .badge-verif { background: var(--blau-hell); color: #1F4E66; }
@@ -150,6 +156,8 @@
       <div class="berge-banner" aria-hidden="true"></div>
       <div class="admin-wrapper">
 
+      <div id="zwangHinweis" class="error-msg hidden" role="alert" style="margin-bottom:18px;"><strong>Bitte jetzt ein neues Passwort setzen.</strong> Aus Sicherheitsgründen (Erststart oder Standardpasswort) ist bis dahin nichts anderes möglich. Mindestens 8 Zeichen.</div>
+
       <!-- 0. Datensicherheit -->
       <div class="card" id="cardSicherheit">
         <h2>Datensicherheit</h2>
@@ -157,6 +165,7 @@
         <ul id="sicherheitListe" class="sicherheit-liste"><li>Wird geprüft …</li></ul>
         <div class="sicherheit-aktionen">
           <button class="btn-add" id="btnBackupJetzt" type="button">Jetzt Sicherung anlegen</button>
+          <button class="btn-section-toggle" id="btnBackupEmail" type="button">Backup per E-Mail senden</button>
           <a class="btn-section-toggle" id="btnBackupDownload" href="/api/admin/backup/download" style="text-decoration:none;display:inline-flex;align-items:center;">Alles herunterladen (ZIP)</a>
         </div>
         <p style="font-size:13px;margin-top:10px;">Beim Start und täglich wird automatisch eine Sicherung der Datenbank angelegt. Das ZIP enthält zusätzlich alle Belegfotos – bitte gelegentlich auf deinem Computer speichern.</p>
@@ -223,6 +232,12 @@
       <!-- 3. Alle Belege -->
       <div class="card">
         <h2>Alle Belege</h2>
+        <div class="export-zeile">
+          <input type="date" id="exVon" class="input-field" aria-label="Export von">
+          <input type="date" id="exBis" class="input-field" aria-label="Export bis">
+          <select id="exDez" class="input-field" aria-label="Dezimalzeichen"><option value="punkt">Punkt (12.50)</option><option value="komma">Komma (12,50)</option></select>
+          <button class="btn-add" id="btnExport" type="button">CSV exportieren</button>
+        </div>
         <p class="auto-legende"><span class="chip-auto">auto</span> = automatisch aus dem Foto gelesen und unverändert übernommen. Werte ohne Markierung wurden von Hand eingetragen.</p>
         <table>
           <thead>
@@ -237,6 +252,8 @@
         <button class="btn-section-toggle" id="btnToggleBelegung">Aktuelle Belegung</button>
         <button class="btn-section-toggle" id="btnToggleGerichte">Gerichte</button>
         <button class="btn-section-toggle" id="btnToggleBenutzer" onclick="toggleSection('benutzer')">Benutzerverwaltung</button>
+        <button class="btn-section-toggle" id="btnTogglePapierkorb" onclick="toggleSection('papierkorb')">Papierkorb</button>
+        <button class="btn-section-toggle" id="btnToggleProtokoll" onclick="toggleSection('protokoll')">Protokoll</button>
         <button class="btn-section-toggle" id="btnToggleProfil" onclick="toggleSection('profil')">Profil ändern</button>
       </div>
 
@@ -273,6 +290,31 @@
         </div>
       </div>
 
+      <!-- Collapsible: Papierkorb -->
+      <div id="section-papierkorb" style="display:none;">
+        <div class="card">
+          <h2>Papierkorb</h2>
+          <p style="font-size:13px;margin-bottom:10px;">Gelöschte Belege bleiben 30 Tage hier und können wiederhergestellt werden. Danach werden sie endgültig entfernt.</p>
+          <div id="papierkorbListe"><p>Wird geladen …</p></div>
+        </div>
+      </div>
+
+      <!-- Collapsible: Protokoll -->
+      <div id="section-protokoll" style="display:none;">
+        <div class="card">
+          <h2>Änderungsprotokoll</h2>
+          <p style="font-size:13px;margin-bottom:10px;">Wer hat wann was getan? (Belege, Benutzer, Perioden, Backups, Exporte, gesperrte Anmeldungen, nicht erkannte Fotos)</p>
+          <select id="protFilter" class="input-field" aria-label="Aktion filtern" style="max-width:320px;margin-bottom:12px;">
+            <option value="">Alle Aktionen</option><option value="beleg_erstellt">Beleg erstellt</option><option value="beleg_geaendert">Beleg geändert</option>
+            <option value="beleg_geloescht">Beleg gelöscht</option><option value="beleg_wiederhergestellt">Beleg wiederhergestellt</option>
+            <option value="status_geaendert">Status geändert</option><option value="scan_unvollstaendig">Foto nicht (vollständig) erkannt</option>
+            <option value="login_gesperrt">Gesperrte Anmeldungen</option><option value="export">Exporte</option>
+          </select>
+          <table class="prot-tabelle"><thead><tr><th>Zeit</th><th>Wer</th><th>Aktion</th><th>Details</th></tr></thead><tbody id="protTabelle"></tbody></table>
+          <button class="btn-section-toggle" id="btnProtMehr" type="button" style="margin-top:12px;">Mehr laden</button>
+        </div>
+      </div>
+
       <!-- Collapsible: Profil -->
       <div id="section-profil" style="display:none;">
         <div class="card">
@@ -284,7 +326,7 @@
             </div>
             <div class="form-group">
               <label>Neues Passwort <span style="color:var(--text-muted);font-weight:400">(leer = unverändert)</span></label>
-              <input type="password" id="profilPasswortNeu" class="input-field" placeholder="Neues Passwort (min. 4 Zeichen)">
+              <input type="password" id="profilPasswortNeu" class="input-field" placeholder="Neues Passwort (min. 8 Zeichen)">
             </div>
             <div class="form-group">
               <label>Aktuelles Passwort <span style="color:var(--rot)">*</span></label>
@@ -306,7 +348,7 @@
       if (r.ok) return r.json();
     }).then(function(user) {
       if (user && user.rolle && user.rolle.split(',').map(function(r){return r.trim();}).includes('admin')) {
-        showAdminPanel();
+        if (user.mussAendern) zeigePasswortZwang(); else showAdminPanel();
       }
     }).catch(function() {});
 
@@ -336,7 +378,7 @@
           if (xhr.status !== 200) { err.textContent = data.error || 'Anmeldung fehlgeschlagen'; err.classList.remove('hidden'); return; }
           var rollen = (data.rolle || '').split(',').map(function(r){return r.trim();});
           if (!rollen.includes('admin')) { err.textContent = 'Kein Admin-Konto'; err.classList.remove('hidden'); return; }
-          showAdminPanel();
+          if (data.passwortAendern) zeigePasswortZwang(); else showAdminPanel();
         } catch(e) { err.textContent = 'Fehler beim Anmelden'; err.classList.remove('hidden'); }
       };
       xhr.send(JSON.stringify({ benutzername: benutzername, passwort: passwort }));
@@ -350,6 +392,17 @@
       xhr.send();
     });
 
+    // Standardpasswort / Erststart: Es ist nur noch das Ändern des Passworts möglich
+    function zeigePasswortZwang() {
+      document.getElementById('loginSection').classList.remove('active');
+      var main = document.getElementById('mainSection');
+      main.classList.add('active', 'zwang');
+      document.getElementById('zwangHinweis').classList.remove('hidden');
+      document.getElementById('section-profil').style.display = 'block';
+      var l = document.getElementById('profilName');
+      if (l) l.placeholder = 'Benutzername (optional ändern)';
+    }
+
     function showAdminPanel() {
       document.getElementById('loginSection').classList.remove('active');
       document.getElementById('mainSection').classList.add('active');
@@ -358,6 +411,60 @@
       ladeKasse();
       ladePerioden();
       ladeBelege();
+    }
+
+    // ===== Papierkorb =====
+    function ladePapierkorb() {
+      var box = document.getElementById('papierkorbListe');
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/papierkorb', true);
+      xhr.onload = function() {
+        var l = []; try { l = JSON.parse(xhr.responseText); } catch (e) {}
+        if (xhr.status !== 200) { box.innerHTML = '<p>Fehler beim Laden</p>'; return; }
+        if (!l.length) { box.innerHTML = '<p>Der Papierkorb ist leer.</p>'; return; }
+        box.innerHTML = l.map(function(b) {
+          return '<div class="pk-eintrag"><div><strong>' + esc(b.geschaeft || 'Beleg') + '</strong> · ' + fmt(b.betrag, b.waehrung) +
+            '<div class="pk-meta">' + fmtDatum(b.datum) + ' · Nr. …' + esc(b.belegnummer || '–') + ' · ' + esc(b.benutzername) + ' · gelöscht von ' + esc(b.geloescht_von || '?') + ' · noch ' + b.verbleibendeTage + ' Tage' +
+            (b.dateipfad ? ' · <a href="/uploads/' + encodeURIComponent(b.dateipfad) + '" target="_blank" rel="noopener">Foto</a>' : '') + '</div></div>' +
+            '<div class="td-actions"><button class="btn-sm btn-status" onclick="pkAktion(' + b.id + ',false)">Wiederherstellen</button>' +
+            '<button class="btn-sm btn-danger" onclick="pkAktion(' + b.id + ',true)">Endgültig löschen</button></div></div>';
+        }).join('');
+      };
+      xhr.send();
+    }
+    function pkAktion(id, endgueltig) {
+      if (endgueltig && !confirm('Diesen Beleg ENDGÜLTIG löschen? Das kann nicht rückgängig gemacht werden.')) return;
+      var xhr = new XMLHttpRequest();
+      xhr.open(endgueltig ? 'DELETE' : 'POST', '/api/papierkorb/' + id + (endgueltig ? '' : '/wiederherstellen'), true);
+      xhr.onload = function() { if (xhr.status === 200) { ladePapierkorb(); ladeBelege(); ladeStats(); ladeSicherheit(); } else alert('Fehler'); };
+      xhr.send();
+    }
+
+    // ===== Protokoll =====
+    var protOffset = 0;
+    var AKTION_TEXT = { beleg_erstellt: 'Beleg erstellt', beleg_geaendert: 'Beleg geändert', beleg_geloescht: 'Beleg gelöscht', beleg_wiederhergestellt: 'Beleg wiederhergestellt',
+      beleg_endgueltig_geloescht: 'Beleg endgültig gelöscht', status_geaendert: 'Status geändert', scan_unvollstaendig: 'Foto nicht (vollständig) erkannt', login_gesperrt: 'Anmeldung gesperrt',
+      login: 'Admin-Login', export: 'Export', benutzer_angelegt: 'Benutzer angelegt', benutzer_geloescht: 'Benutzer gelöscht', rollen_geaendert: 'Rollen geändert', pin_gesetzt: 'PIN gesetzt',
+      pin_selbst_geaendert: 'PIN selbst geändert', admin_profil_geaendert: 'Admin-Profil geändert', kasse_geschlossen: 'Kasse geschlossen', kasse_geoeffnet: 'Kasse geöffnet',
+      periode_angelegt: 'Periode angelegt', periode_aktiviert: 'Periode aktiviert', periode_beendet: 'Periode beendet', periode_geloescht: 'Periode gelöscht', backup_manuell: 'Backup angelegt',
+      backup_download: 'Backup heruntergeladen', backup_email: 'Backup per E-Mail', excel_hochgeladen: 'Excel hochgeladen', excel_geloescht: 'Excel gelöscht' };
+    document.getElementById('protFilter').addEventListener('change', function() { protOffset = 0; document.getElementById('protTabelle').innerHTML = ''; ladeProtokoll(); });
+    document.getElementById('btnProtMehr').addEventListener('click', ladeProtokoll);
+    function ladeProtokoll() {
+      var a = document.getElementById('protFilter').value;
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/admin/protokoll?limit=50&offset=' + protOffset + (a ? '&aktion=' + encodeURIComponent(a) : ''), true);
+      xhr.onload = function() {
+        var d = { eintraege: [], total: 0 }; try { d = JSON.parse(xhr.responseText); } catch (e) {}
+        var html = d.eintraege.map(function(e) {
+          var zeit = new Date(e.zeit.replace(' ', 'T') + 'Z').toLocaleString('de-DE');
+          return '<tr><td style="white-space:nowrap">' + zeit + '</td><td>' + esc(e.benutzername || 'System') + '</td><td>' + esc(AKTION_TEXT[e.aktion] || e.aktion) + '</td><td class="prot-details">' + esc(e.details || '') + '</td></tr>';
+        }).join('');
+        document.getElementById('protTabelle').insertAdjacentHTML('beforeend', html);
+        protOffset += d.eintraege.length;
+        document.getElementById('btnProtMehr').style.display = protOffset < d.total ? '' : 'none';
+      };
+      xhr.send();
     }
 
     // ===== Datensicherheit =====
@@ -380,7 +487,11 @@
         zeile(p.fehlendeDateien.length === 0, p.fehlendeDateien.length === 0
           ? 'Alle ' + p.anzahlMitDatei + ' Belegfotos sind vorhanden'
           : p.fehlendeDateien.length + ' Belegfoto(s) fehlen (Beleg-IDs: ' + p.fehlendeDateien.slice(0, 10).join(', ') + ')') +
-        zeile(!!p.letzteSicherung, 'Letzte automatische Sicherung: ' + letzte + ' (' + p.anzahlSicherungen + ' vorhanden)');
+        zeile(!!p.letzteSicherung, 'Letzte automatische Sicherung: ' + letzte + ' (' + p.anzahlSicherungen + ' vorhanden)') +
+        zeile(p.email && p.email.konfiguriert, p.email && p.email.konfiguriert
+          ? 'Wöchentliches Backup per E-Mail an ' + esc(p.email.an) + (p.email.letzte ? ' (zuletzt ' + new Date(p.email.letzte).toLocaleDateString('de-DE') + ')' : ' (noch nicht gesendet)')
+          : 'E-Mail-Backup nicht eingerichtet (siehe README: SMTP_HOST, BACKUP_EMAIL_TO)') +
+        (p.papierkorb ? '<li class="ok"><span>' + p.papierkorb + ' Beleg(e) im Papierkorb (30 Tage wiederherstellbar)</span></li>' : '');
       if (p.volume.aufRailway) {
         html += zeile(p.volume.sicher, p.volume.sicher
           ? 'Daten liegen auf einem dauerhaften Railway-Volume (' + esc(p.volume.volume || '') + ')'
@@ -410,6 +521,28 @@
       xhr.send();
     });
 
+    document.getElementById('btnBackupEmail').addEventListener('click', function() {
+      var btn = this; btn.disabled = true; var alt = btn.textContent; btn.textContent = 'Sende …';
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/backup/email', true);
+      xhr.onload = function() {
+        btn.disabled = false; btn.textContent = alt;
+        var d = {}; try { d = JSON.parse(xhr.responseText); } catch (e) {}
+        if (xhr.status === 200) { alert('Backup gesendet an ' + d.gesendetAn + ' (' + d.kb + ' KB, ' + d.art + ')'); ladeSicherheit(); }
+        else alert(d.error || 'Senden fehlgeschlagen');
+      };
+      xhr.onerror = function() { btn.disabled = false; btn.textContent = alt; alert('Keine Verbindung'); };
+      xhr.send();
+    });
+
+    document.getElementById('btnExport').addEventListener('click', function() {
+      var p = new URLSearchParams();
+      var v = document.getElementById('exVon').value, b = document.getElementById('exBis').value;
+      if (v) p.append('von', v); if (b) p.append('bis', b);
+      p.append('dezimal', document.getElementById('exDez').value);
+      window.location.href = '/api/export/belege.csv?' + p.toString();
+    });
+
     function toggleSection(name) {
       var el = document.getElementById('section-' + name);
       var btn = document.getElementById('btnToggle' + name.charAt(0).toUpperCase() + name.slice(1));
@@ -418,6 +551,8 @@
       if (btn) btn.classList.toggle('active', !isVisible);
       if (!isVisible) {
         if (name === 'benutzer') ladeBenutzer();
+        if (name === 'papierkorb') ladePapierkorb();
+        if (name === 'protokoll') { protOffset = 0; document.getElementById('protTabelle').innerHTML = ''; ladeProtokoll(); }
       }
     }
 
@@ -517,7 +652,7 @@
     }
 
     function loescheBenutzer(id) {
-      if (!confirm('Benutzer wirklich löschen?')) return;
+      if (!confirm('Benutzer wirklich löschen? Seine Belege kommen in den Papierkorb.')) return;
       var xhr = new XMLHttpRequest();
       xhr.open('DELETE', '/api/admin/benutzer/' + id, true);
       xhr.onreadystatechange = function() {
@@ -540,7 +675,7 @@
             return '<tr>' +
               '<td>' + new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE') + chipAuto(b.auto_datum) + '</td>' +
               '<td>' + esc(b.benutzername) + '</td>' +
-              '<td>' + esc(b.geschaeft) + '</td>' +
+              '<td>' + esc(b.geschaeft) + chipAuto(b.auto_geschaeft) + '</td>' +
               '<td>' + (b.belegnummer ? '…' + esc(b.belegnummer) : '–') + chipAuto(b.auto_belegnummer) + '</td>' +
               '<td><strong>' + fmt(b.betrag, b.waehrung) + '</strong>' +
                 (b.auto_betrag && b.auto_waehrung ? chipAuto(1) : chipAuto(b.auto_betrag, 'Betrag auto') + chipAuto(b.auto_waehrung, 'Währung auto')) + '</td>' +
@@ -571,7 +706,7 @@
     }
 
     function loescheBeleg(id) {
-      if (!confirm('Beleg wirklich löschen?')) return;
+      if (!confirm('Beleg in den Papierkorb verschieben? (30 Tage wiederherstellbar)')) return;
       var xhr = new XMLHttpRequest();
       xhr.open('DELETE', '/api/belege/' + id, true);
       xhr.onreadystatechange = function() {
@@ -745,6 +880,7 @@
       var passNeu = document.getElementById('profilPasswortNeu').value;
       var passAkt = document.getElementById('profilPasswortAktuell').value;
       if (!passAkt) { err.textContent = 'Bitte aktuelles Passwort eingeben'; err.classList.remove('hidden'); return; }
+      if (document.getElementById('mainSection').classList.contains('zwang') && !passNeu) { err.textContent = 'Bitte ein neues Passwort setzen (mindestens 8 Zeichen)'; err.classList.remove('hidden'); return; }
       if (!name && !passNeu) { err.textContent = 'Bitte neuen Namen oder neues Passwort angeben'; err.classList.remove('hidden'); return; }
       btn.disabled = true; btn.textContent = 'Speichern...';
       var xhr = new XMLHttpRequest();
@@ -760,6 +896,7 @@
           document.getElementById('profilPasswortNeu').value = '';
           document.getElementById('profilPasswortAktuell').value = '';
           succ.style.display = 'block';
+          if (document.getElementById('mainSection').classList.contains('zwang')) { setTimeout(function() { window.location.reload(); }, 900); return; }
           setTimeout(function() { succ.style.display = 'none'; }, 4000);
         } catch(e) { err.textContent = 'Fehler'; err.classList.remove('hidden'); }
       };
@@ -852,7 +989,7 @@
     function ladeXLSXUndRendere(b) {
       if (typeof XLSX !== 'undefined') { fetchUndRendereExcel(b); return; }
       var script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.src = '/vendor/xlsx.full.min.js';
       script.onload = function() { fetchUndRendereExcel(b); };
       script.onerror = function() {
         var t = document.getElementById(b.key + 'Tabelle');
@@ -952,6 +1089,9 @@
     function fmtCHF(n) { return new Intl.NumberFormat('de-CH',{style:'currency',currency:'CHF'}).format(n||0); }
     function fmtDatum(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('de-DE') : '–'; }
     function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) window.addEventListener('load', function() { navigator.serviceWorker.register('/sw.js').catch(function() {}); });
   </script>
 </body>
 </html>

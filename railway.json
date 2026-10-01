@@ -5,6 +5,8 @@
   },
   "deploy": {
     "startCommand": "node server.js",
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 60
   }
 }

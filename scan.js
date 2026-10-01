@@ -8,7 +8,7 @@ const pad = n => String(n).padStart(2, '0');
 // OCR verwechselt in Zahlen oft O/o mit 0 und l/I/| mit 1
 function normalisiereZiffern(text) {
   return text
-    .replace(/(?<=\d)[Oo](?=[\d.,\/-])|(?<=[\d.,\/-])[Oo](?=\d)/g, '0')
+    .replace(/(?<=\d)[Oo](?=[\d.,\/-])|(?<=[\d.,\/-])[Oo](?=\d)|(?<=\d)[Oo](?![\p{L}])/gu, '0')
     .replace(/(?<=\d)[lI|](?=[\d.,\/-])|(?<=[\d.,\/-])[lI|](?=\d)/g, '1');
 }
 
