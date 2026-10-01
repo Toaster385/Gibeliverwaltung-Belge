@@ -718,7 +718,21 @@ app.get('/api/statistiken', requireLogin, (req, res) => {
            SUM(CASE WHEN waehrung='CHF' THEN betrag ELSE 0 END) as gesamt_chf
     FROM belege ${where ? where + ' AND' : 'WHERE'} strftime('%Y-%m', datum) = strftime('%Y-%m', 'now')
   `).get(...args);
-  res.json({ gesamt: total, dieserMonat: thisMonth });
+  // Aktive Periode (Abrechnungszeitraum) – gleiche Sichtbarkeit wie oben (Gäste nur eigene Belege)
+  let periode = null;
+  const aktiv = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='aktive_periode'`).get();
+  const aktivId = parseInt(aktiv?.wert || '0');
+  const p = aktivId ? db.prepare('SELECT * FROM perioden WHERE id = ?').get(aktivId) : null;
+  if (p) {
+    const stats = db.prepare(`
+      SELECT COUNT(*) as anzahl,
+             SUM(CASE WHEN waehrung='EUR' THEN betrag ELSE 0 END) as gesamt_eur,
+             SUM(CASE WHEN waehrung='CHF' THEN betrag ELSE 0 END) as gesamt_chf
+      FROM belege ${where ? where + ' AND' : 'WHERE'} datum >= ? AND datum <= ?
+    `).get(...args, p.von, p.bis);
+    periode = { name: p.name, von: p.von, bis: p.bis, ...stats };
+  }
+  res.json({ gesamt: total, dieserMonat: thisMonth, periode });
 });
 
 app.listen(PORT, '0.0.0.0', () => {

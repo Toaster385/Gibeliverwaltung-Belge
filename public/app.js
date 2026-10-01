@@ -236,7 +236,7 @@ function ladeStatistiken() {
     try {
       statsData = JSON.parse(xhr.responseText);
       document.getElementById('statAnzahl').textContent = statsData.gesamt.anzahl || 0;
-      document.getElementById('statMonat').textContent = statsData.dieserMonat.anzahl || 0;
+      document.getElementById('statMonat').textContent = statsData.periode ? (statsData.periode.anzahl || 0) : '–';
       aktualisiereStatistikAnzeige();
     } catch(e) {}
   };
@@ -250,8 +250,10 @@ function aktualisiereStatistikAnzeige() {
 
   var gEur = statsData.gesamt.gesamt_eur || 0;
   var gChf = statsData.gesamt.gesamt_chf || 0;
-  var mEur = statsData.dieserMonat.gesamt_eur || 0;
-  var mChf = statsData.dieserMonat.gesamt_chf || 0;
+  // Betrag nicht mehr pro Monat, sondern pro aktiver Periode
+  var periode = statsData.periode;
+  var mEur = periode ? (periode.gesamt_eur || 0) : 0;
+  var mChf = periode ? (periode.gesamt_chf || 0) : 0;
 
   var gesamtAnzeige, monatAnzeige, kursText;
   if (statsWaehrung === 'CHF') {
@@ -259,14 +261,17 @@ function aktualisiereStatistikAnzeige() {
     monatAnzeige = mChf + mEur * eurCHF;
     kursText = '1 EUR = ' + eurCHF.toFixed(4) + ' CHF';
     document.getElementById('statGesamt').textContent = formatBetrag(gesamtAnzeige, 'CHF');
-    document.getElementById('statMonatBetrag').textContent = formatBetrag(monatAnzeige, 'CHF');
+    document.getElementById('statMonatBetrag').textContent = periode ? formatBetrag(monatAnzeige, 'CHF') : '–';
   } else {
     gesamtAnzeige = gEur + gChf * chfEUR;
     monatAnzeige = mEur + mChf * chfEUR;
     kursText = '1 CHF = ' + chfEUR.toFixed(4) + ' EUR';
     document.getElementById('statGesamt').textContent = formatBetrag(gesamtAnzeige, 'EUR');
-    document.getElementById('statMonatBetrag').textContent = formatBetrag(monatAnzeige, 'EUR');
+    document.getElementById('statMonatBetrag').textContent = periode ? formatBetrag(monatAnzeige, 'EUR') : '–';
   }
+
+  var pInfo = document.getElementById('statPeriodeInfo');
+  if (pInfo) pInfo.textContent = periode ? periode.name + ' (' + formatDatum(periode.von) + ' – ' + formatDatum(periode.bis) + ')' : 'Keine aktive Periode';
 
   var kursEl = document.getElementById('statKurs');
   if (kursEl) kursEl.textContent = (gChf > 0 && gEur > 0) ? kursText : '';
