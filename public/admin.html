@@ -248,8 +248,8 @@
               <input type="text" id="neuBenutzername" class="input-field" placeholder="Name">
             </div>
             <div class="form-group">
-              <label>Geburtsdatum</label>
-              <input type="date" id="neuGeburtsdatum" class="input-field">
+              <label for="neuPin">PIN (4 Ziffern)</label>
+              <input type="text" id="neuPin" class="input-field" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="z.B. 4711" autocomplete="off">
             </div>
             <div class="form-group">
               <label>Rolle</label>
@@ -263,7 +263,7 @@
           <div id="userError" class="error-msg hidden"></div>
           <table>
             <thead>
-              <tr><th>Benutzername</th><th>Geburtsdatum</th><th>Rollen</th><th>Belege</th><th></th></tr>
+              <tr><th>Benutzername</th><th>PIN</th><th>Rollen</th><th>Belege</th><th></th></tr>
             </thead>
             <tbody id="userTableBody"></tbody>
           </table>
@@ -372,9 +372,9 @@
       var err = document.getElementById('userError');
       err.classList.add('hidden');
       var benutzername = document.getElementById('neuBenutzername').value.trim();
-      var geburtsdatum = document.getElementById('neuGeburtsdatum').value;
+      var pin = document.getElementById('neuPin').value.trim();
       var rolle = document.getElementById('neuRolle').value;
-      if (!benutzername || !geburtsdatum) { err.textContent = 'Bitte Name und Geburtsdatum eingeben'; err.classList.remove('hidden'); return; }
+      if (!benutzername || !/^\d{4}$/.test(pin)) { err.textContent = 'Bitte Name und einen 4-stelligen PIN (nur Ziffern) eingeben'; err.classList.remove('hidden'); return; }
       var xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/admin/benutzer', true);
       xhr.setRequestHeader('Content-Type', 'application/json');
@@ -384,11 +384,11 @@
           var data = JSON.parse(xhr.responseText);
           if (xhr.status !== 201) { err.textContent = data.error || 'Fehler'; err.classList.remove('hidden'); return; }
           document.getElementById('neuBenutzername').value = '';
-          document.getElementById('neuGeburtsdatum').value = '';
+          document.getElementById('neuPin').value = '';
           ladeBenutzer();
         } catch(e) { err.textContent = 'Fehler'; err.classList.remove('hidden'); }
       };
-      xhr.send(JSON.stringify({ benutzername: benutzername, geburtsdatum: geburtsdatum, rollen: [rolle] }));
+      xhr.send(JSON.stringify({ benutzername: benutzername, pin: pin, rollen: [rolle] }));
     });
 
     function ladeBenutzer() {
@@ -416,7 +416,8 @@
             }).join('');
             return '<tr>' +
               '<td><strong>' + esc(u.benutzername) + '</strong></td>' +
-              '<td>' + (u.geburtsdatum ? new Date(u.geburtsdatum + 'T00:00:00').toLocaleDateString('de-DE') : '–') + '</td>' +
+              '<td>' + (istAdmin ? '–' : '<span class="badge ' + (u.hat_pin ? 'badge-aktiv' : 'badge-ausstehend') + '">' + (u.hat_pin ? 'gesetzt' : 'fehlt') + '</span> ' +
+                '<button class="btn-sm btn-status" onclick="setzePin(' + u.id + ')">' + (u.hat_pin ? 'Ändern' : 'Setzen') + '</button>') + '</td>' +
               '<td><span id="user-rollen-' + u.id + '" data-rollen=\'' + JSON.stringify(userRollen) + '\'>' + rollenButtons + '</span></td>' +
               '<td>' + (countMap[u.benutzername] || 0) + '</td>' +
               '<td>' + (!istAdmin ? '<button class="btn-sm btn-danger" onclick="loescheBenutzer(' + u.id + ')">Löschen</button>' : '') + '</td>' +
@@ -426,6 +427,22 @@
         xhr2.send();
       };
       xhr1.send();
+    }
+
+    function setzePin(userId) {
+      var pin = prompt('Neuer 4-stelliger PIN (nur Ziffern):');
+      if (pin === null) return;
+      pin = pin.trim();
+      if (!/^\d{4}$/.test(pin)) { alert('Der PIN muss genau 4 Ziffern haben'); return; }
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', '/api/admin/benutzer/' + userId + '/pin', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) ladeBenutzer();
+        else { try { alert(JSON.parse(xhr.responseText).error); } catch(e) {} }
+      };
+      xhr.send(JSON.stringify({ pin: pin }));
     }
 
     function toggleRolle(userId, rolle, hatRolleAktuell) {

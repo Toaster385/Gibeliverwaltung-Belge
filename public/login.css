@@ -133,6 +133,10 @@ select.input-field {
   margin-bottom: 16px;
 }
 
+/* ===== PIN-Eingabe (4 Ziffernfelder) ===== */
+.pin-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.input-field.pin-box { text-align: center; padding: 0; min-height: 64px; font-size: 28px; font-weight: 600; font-family: var(--font-head); letter-spacing: 0; }
+
 /* ===== Login-Seite ===== */
 .login-section, body.login-page { position: relative; }
 

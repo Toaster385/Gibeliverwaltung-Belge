@@ -66,6 +66,7 @@ const migrations = [
   `ALTER TABLE belege ADD COLUMN geschaeft TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE belege ADD COLUMN kategorie TEXT NOT NULL DEFAULT 'Sonstiges'`,
   `ALTER TABLE belege ADD COLUMN belegnummer TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE benutzer ADD COLUMN pin TEXT`,
 ];
 for (const m of migrations) { try { db.exec(m); } catch (e) {} }
 
@@ -184,7 +185,7 @@ app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'public',
 
 // ===== AUTH ROUTES =====
 app.post('/api/login', (req, res) => {
-  const { benutzername, passwort, geburtsdatum } = req.body;
+  const { benutzername, passwort, pin } = req.body;
   if (!benutzername) return res.status(400).json({ error: 'Benutzername erforderlich' });
 
   const user = db.prepare('SELECT * FROM benutzer WHERE benutzername = ?').get(benutzername);
@@ -195,8 +196,10 @@ app.post('/api/login', (req, res) => {
     if (!passwort || !bcrypt.compareSync(passwort, user.passwort))
       return res.status(401).json({ error: 'Falsches Passwort' });
   } else {
-    if (!geburtsdatum || geburtsdatum !== user.geburtsdatum)
-      return res.status(401).json({ error: 'Falsches Geburtsdatum' });
+    if (!user.pin)
+      return res.status(401).json({ error: 'Für dieses Konto ist noch kein PIN gesetzt – bitte beim Admin melden' });
+    if (!/^\d{4}$/.test(String(pin || '')) || !bcrypt.compareSync(String(pin), user.pin))
+      return res.status(401).json({ error: 'Falscher PIN' });
   }
 
   req.session.benutzer = { id: user.id, benutzername: user.benutzername, rolle: user.rolle };
@@ -244,14 +247,16 @@ app.use('/uploads', requireLogin, express.static(uploadsDir));
 
 // ===== ADMIN: USER MANAGEMENT =====
 app.get('/api/admin/benutzer', requireAdmin, (req, res) => {
-  const users = db.prepare('SELECT id, benutzername, rolle, geburtsdatum, erstellt_am FROM benutzer ORDER BY erstellt_am DESC').all();
+  const users = db.prepare('SELECT id, benutzername, rolle, geburtsdatum, (pin IS NOT NULL AND pin != \'\') AS hat_pin, erstellt_am FROM benutzer ORDER BY erstellt_am DESC').all();
   res.json(users);
 });
 
 app.post('/api/admin/benutzer', requireAdmin, (req, res) => {
-  const { benutzername, geburtsdatum, rollen } = req.body;
-  if (!benutzername || !geburtsdatum)
-    return res.status(400).json({ error: 'Benutzername und Geburtsdatum erforderlich' });
+  const { benutzername, pin, rollen } = req.body;
+  if (!benutzername || !pin)
+    return res.status(400).json({ error: 'Benutzername und PIN erforderlich' });
+  if (!/^\d{4}$/.test(String(pin)))
+    return res.status(400).json({ error: 'Der PIN muss genau 4 Ziffern haben' });
 
   const existing = db.prepare('SELECT id FROM benutzer WHERE benutzername = ?').get(benutzername);
   if (existing) return res.status(400).json({ error: 'Benutzername bereits vergeben' });
@@ -261,9 +266,19 @@ app.post('/api/admin/benutzer', requireAdmin, (req, res) => {
     : 'gibeli-gast';
 
   const result = db.prepare(
-    "INSERT INTO benutzer (benutzername, passwort, rolle, geburtsdatum) VALUES (?, '', ?, ?)"
-  ).run(benutzername, rolleStr, geburtsdatum);
+    "INSERT INTO benutzer (benutzername, passwort, rolle, pin) VALUES (?, '', ?, ?)"
+  ).run(benutzername, rolleStr, bcrypt.hashSync(String(pin), 10));
   res.status(201).json({ id: result.lastInsertRowid, benutzername, rolle: rolleStr });
+});
+
+app.put('/api/admin/benutzer/:id/pin', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT id FROM benutzer WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+  const { pin } = req.body;
+  if (!/^\d{4}$/.test(String(pin || '')))
+    return res.status(400).json({ error: 'Der PIN muss genau 4 Ziffern haben' });
+  db.prepare('UPDATE benutzer SET pin = ? WHERE id = ?').run(bcrypt.hashSync(String(pin), 10), req.params.id);
+  res.json({ success: true });
 });
 
 app.put('/api/admin/benutzer/:id/rollen', requireAdmin, (req, res) => {

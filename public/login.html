@@ -27,8 +27,13 @@
           <input type="text" id="benutzername" class="input-field" placeholder="Dein Name" autocomplete="off">
         </div>
         <div class="form-group">
-          <label for="geburtsdatum">Geburtsdatum</label>
-          <input type="date" id="geburtsdatum" class="input-field">
+          <label id="pinLabel" for="pin1">PIN (4 Ziffern)</label>
+          <div class="pin-row" role="group" aria-labelledby="pinLabel">
+            <input type="password" id="pin1" class="input-field pin-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Ziffer 1">
+            <input type="password" id="pin2" class="input-field pin-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Ziffer 2">
+            <input type="password" id="pin3" class="input-field pin-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Ziffer 3">
+            <input type="password" id="pin4" class="input-field pin-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Ziffer 4">
+          </div>
         </div>
 
         <div class="error-msg hidden" id="errorMsg" role="alert"></div>
@@ -44,20 +49,40 @@
 
   <script>
     document.getElementById('btnLogin').addEventListener('click', doLogin);
-    document.getElementById('geburtsdatum').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') doLogin();
+
+    // 4 einzelne Ziffernfelder: Auto-Weiter, Rückwärts mit Backspace, Einfügen, Enter
+    var pinBoxes = [1, 2, 3, 4].map(function(i) { return document.getElementById('pin' + i); });
+    pinBoxes.forEach(function(box, i) {
+      box.addEventListener('input', function() {
+        box.value = box.value.replace(/\D/g, '').slice(0, 1);
+        if (box.value && i < 3) pinBoxes[i + 1].focus();
+      });
+      box.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { doLogin(); return; }
+        if (e.key === 'Backspace' && !box.value && i > 0) { pinBoxes[i - 1].focus(); pinBoxes[i - 1].value = ''; }
+        if (e.key === 'ArrowLeft' && i > 0) pinBoxes[i - 1].focus();
+        if (e.key === 'ArrowRight' && i < 3) pinBoxes[i + 1].focus();
+      });
+      box.addEventListener('focus', function() { box.select(); });
+      box.addEventListener('paste', function(e) {
+        var text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 4);
+        if (!text) return;
+        e.preventDefault();
+        text.split('').forEach(function(ch, k) { pinBoxes[k].value = ch; });
+        pinBoxes[Math.min(text.length, 3)].focus();
+      });
     });
 
     function doLogin() {
       var btn = document.getElementById('btnLogin');
       var errorMsg = document.getElementById('errorMsg');
       var benutzername = document.getElementById('benutzername').value.trim();
-      var geburtsdatum = document.getElementById('geburtsdatum').value;
+      var pin = pinBoxes.map(function(b) { return b.value; }).join('');
 
       errorMsg.classList.add('hidden');
 
-      if (!benutzername || !geburtsdatum) {
-        errorMsg.textContent = 'Bitte Benutzername und Geburtsdatum eingeben';
+      if (!benutzername || pin.length !== 4) {
+        errorMsg.textContent = 'Bitte Benutzername und 4-stelligen PIN eingeben';
         errorMsg.classList.remove('hidden');
         return;
       }
@@ -77,6 +102,8 @@
           if (xhr.status !== 200) {
             errorMsg.textContent = data.error || 'Anmeldung fehlgeschlagen';
             errorMsg.classList.remove('hidden');
+            pinBoxes.forEach(function(b) { b.value = ''; });
+            pinBoxes[0].focus();
             return;
           }
           window.location.href = '/';
@@ -85,7 +112,7 @@
           errorMsg.classList.remove('hidden');
         }
       };
-      xhr.send(JSON.stringify({ benutzername: benutzername, geburtsdatum: geburtsdatum }));
+      xhr.send(JSON.stringify({ benutzername: benutzername, pin: pin }));
     }
   </script>
 </body>
