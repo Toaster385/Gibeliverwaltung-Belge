@@ -865,231 +865,28 @@ function schliesseSidebar() {
   document.getElementById('sidebarOverlay').classList.remove('active');
 }
 
-// ===== Excel-Bereiche: Aktuelle Belegung & Gerichte =====
-// Beide Bereiche verhalten sich gleich: alle sehen die Tabelle, Hochladen/Löschen nur mit passender Rolle.
-var EXCEL_BEREICHE = [
-  { key: 'belegung', id: 'Belegung', titel: 'Aktuelle Belegung', api: '/api/belegung', leer: 'Noch keine Belegung hochgeladen.', schreibRollen: ['admin', 'verwaltung'] },
-  { key: 'gerichte', id: 'Gerichte', titel: 'Gerichte', api: '/api/gerichte', leer: 'Noch keine Gerichte hochgeladen.', schreibRollen: ['admin', 'gerichte'] }
-];
-
-function excelBereich(key) {
-  return EXCEL_BEREICHE.filter(function(b) { return b.key === key; })[0];
-}
-
+// ===== Excel-Bereiche: Aktuelle Belegung & Gerichte (siehe excel-ansicht.js) =====
 function initExcelBereiche() {
-  EXCEL_BEREICHE.forEach(function(b) {
-    var wrap = document.createElement('div');
-    wrap.className = 'modal-overlay';
-    wrap.id = b.key + 'Overlay';
-    wrap.innerHTML =
-      '<div class="modal modal-belegung" role="dialog" aria-modal="true" aria-labelledby="' + b.key + 'Titel">' +
-        '<div class="modal-header">' +
-          '<h2 id="' + b.key + 'Titel">' + b.titel + '</h2>' +
-          '<button class="modal-close" id="' + b.key + 'Close" aria-label="Schliessen">&times;</button>' +
-        '</div>' +
-        '<div id="' + b.key + 'ModalContent" style="padding:20px;overflow:auto;max-height:60vh;"></div>' +
-        '<div id="' + b.key + 'UploadArea" class="hidden" style="padding:14px 20px 20px;border-top:1px solid var(--border);background:var(--bg);">' +
-          '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">' +
-            '<label for="' + b.key + 'DateiInput" style="font-size:13px;font-weight:600;white-space:nowrap;">Hochladen / ersetzen:</label>' +
-            '<input type="file" id="' + b.key + 'DateiInput" accept=".xlsx,.xls,.ods" style="font-size:13px;flex:1 1 100%;min-width:0;">' +
-            '<button class="btn btn-primary" id="btn' + b.id + 'Hochladen" style="white-space:nowrap;">Hochladen</button>' +
-            '<button class="btn btn-danger" id="btn' + b.id + 'Loeschen" style="white-space:nowrap;">Löschen</button>' +
-          '</div>' +
-          '<div id="' + b.key + 'UploadMsg" style="font-size:13px;margin-top:8px;display:none;"></div>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(wrap);
-
-    document.getElementById(b.key + 'Close').addEventListener('click', function() { schliesseExcelModal(b); });
-    wrap.addEventListener('click', function(e) { if (e.target === wrap) schliesseExcelModal(b); });
-    document.getElementById('btn' + b.id + 'Hochladen').addEventListener('click', function() { hochladenExcel(b); });
-    document.getElementById('btn' + b.id + 'Loeschen').addEventListener('click', function() { loeschenExcel(b); });
-    var side = document.getElementById('sidebar' + b.id);
-    if (side) side.addEventListener('click', function() { schliesseSidebar(); oeffneExcelModal(b); });
+  ExcelAnsicht.init({
+    mount: document.body,
+    toast: zeigeToast,
+    bereiche: [
+      { key: 'belegung', titel: 'Aktuelle Belegung', api: '/api/belegung', leer: 'Noch keine Belegung hochgeladen.', spalten: true, nachSpalten: ladeGibeliKarte },
+      { key: 'gerichte', titel: 'Gerichte', api: '/api/gerichte', leer: 'Noch keine Gerichte hochgeladen.' }
+    ]
   });
+  document.getElementById('sidebarBelegung').addEventListener('click', function() { schliesseSidebar(); ExcelAnsicht.oeffne('belegung'); });
+  document.getElementById('sidebarGerichte').addEventListener('click', function() { schliesseSidebar(); ExcelAnsicht.oeffne('gerichte'); });
+  ladeGibeliKarte();
 }
+function schliesseExcelModale() { ExcelAnsicht.schliesseAlle(); }
 
-function hatSchreibRecht(b) {
-  var rollen = ((currentUser && currentUser.rolle) || '').split(',').map(function(r) { return r.trim(); });
-  return rollen.some(function(r) { return b.schreibRollen.indexOf(r) >= 0; });
+// Kleine Karte "Im Gibeli": wer ist da, nächste Abreise/Anreise (aus der Belegungs-Tabelle)
+function ladeGibeliKarte() {
+  var host = document.getElementById('gibeliKarte');
+  if (!host || offlineStart) return;
+  ExcelAnsicht.zeigeUebersicht(host, { api: '/api/belegung', oeffnen: function() { ExcelAnsicht.oeffne('belegung'); } });
 }
-
-function oeffneExcelModal(b) {
-  document.getElementById(b.key + 'Overlay').classList.add('active');
-  ladeExcelInfo(b);
-}
-
-function schliesseExcelModal(b) {
-  document.getElementById(b.key + 'Overlay').classList.remove('active');
-}
-
-function schliesseExcelModale() {
-  EXCEL_BEREICHE.forEach(function(b) {
-    var el = document.getElementById(b.key + 'Overlay');
-    if (el) el.classList.remove('active');
-  });
-}
-
-function ladeExcelInfo(b) {
-  var content = document.getElementById(b.key + 'ModalContent');
-  content.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px 0;">Wird geladen...</p>';
-
-  var hatRechte = hatSchreibRecht(b);
-  var uploadArea = document.getElementById(b.key + 'UploadArea');
-  var uploadMsg = document.getElementById(b.key + 'UploadMsg');
-  if (uploadMsg) uploadMsg.style.display = 'none';
-  if (hatRechte) { uploadArea.classList.remove('hidden'); } else { uploadArea.classList.add('hidden'); }
-
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', b.api, true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      zeigeExcelTabelle(b, JSON.parse(xhr.responseText), hatRechte);
-    } catch(e) {
-      content.innerHTML = '<p style="color:var(--danger);text-align:center;">Fehler beim Laden</p>';
-    }
-  };
-  xhr.send();
-}
-
-function zeigeExcelTabelle(b, data, hatRechte) {
-  var content = document.getElementById(b.key + 'ModalContent');
-  var btnDel = document.getElementById('btn' + b.id + 'Loeschen');
-
-  if (!data.vorhanden) {
-    content.innerHTML =
-      '<div style="text-align:center;padding:40px 20px;">' +
-        '<svg viewBox="0 0 120 72" width="96" height="58" aria-hidden="true" style="margin-bottom:12px;"><path d="M0 72L30 24l14 18 16-30 22 36 10-12 28 36z" fill="#6FA3BF"/><path d="M60 12L50 30l6-3 4 5 5-4 6 3z" fill="#fff"/><path d="M0 72L22 44l12 14 14-20 18 34z" fill="#2F4A3A"/></svg>' +
-        '<p style="color:var(--text-muted);">' + b.leer + '</p>' +
-        (hatRechte ? '<p style="color:var(--text-muted);font-size:13px;margin-top:6px;">Lade eine Excel-Datei unten hoch.</p>' : '') +
-      '</div>';
-    if (btnDel) btnDel.style.visibility = 'hidden';
-    return;
-  }
-
-  if (btnDel) btnDel.style.visibility = '';
-
-  var hochgeladenAm = '';
-  if (data.hochgeladen_am) {
-    try { hochgeladenAm = new Date(data.hochgeladen_am).toLocaleString('de-DE'); } catch(e) {}
-  }
-
-  content.innerHTML =
-    '<div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
-      '<strong>' + escapeHtml(data.dateiname) + '</strong>' +
-      (hochgeladenAm ? '<span style="color:var(--text-muted);font-size:12px;">Hochgeladen: ' + hochgeladenAm + '</span>' : '') +
-    '</div>' +
-    '<div id="' + b.key + 'Tabelle">' +
-      '<p style="color:var(--text-muted);font-size:13px;">Tabelle wird geladen...</p>' +
-    '</div>';
-
-  ladeXLSXUndRendere(b);
-}
-
-function ladeXLSXUndRendere(b) {
-  if (typeof XLSX !== 'undefined') { fetchUndRendereExcel(b); return; }
-  var script = document.createElement('script');
-  script.src = '/vendor/xlsx.full.min.js';
-  script.onload = function() { fetchUndRendereExcel(b); };
-  script.onerror = function() {
-    var t = document.getElementById(b.key + 'Tabelle');
-    if (t) t.innerHTML = '<p style="color:var(--danger);">Excel-Bibliothek konnte nicht geladen werden.</p>';
-  };
-  document.head.appendChild(script);
-}
-
-function fetchUndRendereExcel(b) {
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', b.api + '/datei', true);
-  xhr.responseType = 'arraybuffer';
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    var t = document.getElementById(b.key + 'Tabelle');
-    if (!t) return;
-    if (xhr.status !== 200) {
-      t.innerHTML = '<p style="color:var(--danger);">Datei konnte nicht geladen werden.</p>';
-      return;
-    }
-    try {
-      var wb = XLSX.read(new Uint8Array(xhr.response), { type: 'array' });
-      var ws = wb.Sheets[wb.SheetNames[0]];
-      var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      if (!rows.length) { t.innerHTML = '<p style="color:var(--text-muted);">Die Tabelle ist leer.</p>'; return; }
-      var html = '<div style="overflow:auto;max-height:50vh;"><table class="belegung-table"><tbody>';
-      rows.forEach(function(row, ri) {
-        html += '<tr>';
-        (row || []).forEach(function(cell) {
-          var tag = ri === 0 ? 'th' : 'td';
-          html += '<' + tag + '>' + escapeHtml(String(cell === null || cell === undefined ? '' : cell)) + '</' + tag + '>';
-        });
-        html += '</tr>';
-      });
-      html += '</tbody></table></div>';
-      t.innerHTML = html;
-    } catch(e) {
-      t.innerHTML = '<p style="color:var(--danger);">Fehler beim Lesen der Datei: ' + escapeHtml(e.message || '') + '</p>';
-    }
-  };
-  xhr.send();
-}
-
-function hochladenExcel(b) {
-  var input = document.getElementById(b.key + 'DateiInput');
-  var msg = document.getElementById(b.key + 'UploadMsg');
-  msg.style.display = 'none';
-  if (!input.files || !input.files[0]) {
-    msg.textContent = 'Bitte eine Excel-Datei auswählen.';
-    msg.style.color = 'var(--rot-dunkel)';
-    msg.style.display = 'block';
-    return;
-  }
-  var btn = document.getElementById('btn' + b.id + 'Hochladen');
-  btn.disabled = true;
-  btn.textContent = 'Wird hochgeladen...';
-  var formData = new FormData();
-  formData.append('datei', input.files[0]);
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', b.api, true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    btn.disabled = false;
-    btn.textContent = 'Hochladen';
-    try {
-      var data = JSON.parse(xhr.responseText);
-      if (xhr.status !== 200) {
-        msg.textContent = data.error || 'Fehler beim Hochladen.';
-        msg.style.color = 'var(--rot-dunkel)';
-        msg.style.display = 'block';
-        return;
-      }
-      input.value = '';
-      msg.textContent = '✓ Datei erfolgreich hochgeladen!';
-      msg.style.color = 'var(--tanne)';
-      msg.style.display = 'block';
-      setTimeout(function() { msg.style.display = 'none'; }, 3000);
-      ladeExcelInfo(b);
-    } catch(e) {
-      msg.textContent = 'Unerwarteter Fehler.';
-      msg.style.color = 'var(--rot-dunkel)';
-      msg.style.display = 'block';
-    }
-  };
-  xhr.send(formData);
-}
-
-function loeschenExcel(b) {
-  if (!confirm(b.titel + '-Datei wirklich löschen?')) return;
-  var xhr = new XMLHttpRequest();
-  xhr.open('DELETE', b.api, true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    if (xhr.status === 200) { ladeExcelInfo(b); }
-    else { zeigeToast('Fehler beim Löschen', 'error'); }
-  };
-  xhr.send();
-}
-
 
 // ===== Weitere Fotos zu einem Beleg =====
 function initZusatzfotos() {
@@ -1377,7 +1174,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js').then(function() { return navigator.serviceWorker.ready; }).then(function(reg) {
       // Oberfläche für den Offline-Start zwischenspeichern (nur die App-Dateien, keine Daten)
-      if (reg.active) reg.active.postMessage({ typ: 'huelle', urls: ['/', '/app.js', '/style.css', '/login.css', '/vendor/xlsx.full.min.js',
+      if (reg.active) reg.active.postMessage({ typ: 'huelle', urls: ['/', '/app.js', '/style.css', '/login.css', '/excel-ansicht.css', '/excel-ansicht.js', '/vendor/xlsx.full.min.js',
         '/fonts/inter-latin-500-normal.woff2', '/fonts/inter-latin-700-normal.woff2', '/fonts/fraunces-latin-700-normal.woff2'] });
     }).catch(function() {});
   });

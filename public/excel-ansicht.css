@@ -1,0 +1,112 @@
+/* Excel-Ansicht (Aktuelle Belegung / Gerichte) – eigenständig, nutzt die Farbvariablen aus login.css */
+.xl-overlay { position: fixed; inset: 0; background: rgba(20,32,25,.6); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 16px; opacity: 0; pointer-events: none; transition: opacity 160ms ease; }
+.xl-overlay.active { opacity: 1; pointer-events: all; }
+.xl-modal { background: var(--creme); border-radius: 20px; width: 100%; max-width: min(1280px, 100%); max-height: 94vh; max-height: 94dvh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 18px 48px rgba(31,42,36,.35); font-family: var(--font-body); color: var(--text); }
+.xl-kopf { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; background: var(--tanne); border-bottom: 4px solid var(--holz); color: #fff; flex-shrink: 0; }
+.xl-kopf h2 { font-family: var(--font-head); font-size: 21px; color: #fff; }
+.xl-schliessen { background: rgba(255,255,255,.12); border: none; color: #fff; width: 44px; height: 44px; border-radius: 12px; font-size: 26px; line-height: 1; cursor: pointer; transition: background 160ms; }
+.xl-schliessen:hover { background: rgba(255,255,255,.25); }
+.xl-kopf :focus-visible { outline-color: #fff; }
+
+.xl-leiste { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.xl-info { font-size: 13px; color: var(--text-muted); min-width: 0; overflow-wrap: anywhere; }
+.xl-info strong { color: var(--text); font-size: 14px; }
+.xl-werkzeuge { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.xl-suche { min-height: 40px !important; width: 220px; max-width: 100%; padding: 6px 12px !important; font-size: 14px !important; }
+.xl-treffer { font-size: 13px; color: var(--text-muted); min-width: 70px; }
+
+.xl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 6px 14px; border-radius: 12px; border: 1.5px solid var(--tanne); background: var(--surface); color: var(--tanne); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; transition: background 160ms, color 160ms, border-color 160ms; }
+.xl-btn:hover { background: var(--tanne-hell); color: var(--tanne); }
+.xl-btn-primary { background: var(--rot); border-color: var(--rot); color: #fff; }
+.xl-btn-primary:hover { background: var(--rot-dunkel); border-color: var(--rot-dunkel); color: #fff; }
+.xl-btn-danger { border-color: var(--rot); color: var(--rot-dunkel); }
+.xl-btn-danger:hover { background: var(--rot); color: #fff; }
+.xl-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+.xl-tabs { display: flex; gap: 6px; padding: 10px 20px 0; overflow-x: auto; flex-shrink: 0; border-bottom: 2px solid var(--border); background: var(--creme); }
+.xl-tab { padding: 8px 16px; border: 1.5px solid var(--border); border-bottom: none; border-radius: 12px 12px 0 0; background: var(--surface); color: var(--text-muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 160ms, color 160ms; margin-bottom: -2px; }
+.xl-tab:hover { background: var(--tanne-hell); color: var(--tanne); }
+.xl-tab[aria-selected="true"] { background: var(--tanne); border-color: var(--tanne); color: #fff; }
+
+.xl-inhalt { padding: 16px 20px; overflow: auto; flex: 1; min-height: 140px; }
+.xl-leer { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+.xl-leer svg { margin-bottom: 12px; }
+.xl-hinweis { font-size: 13px; color: var(--text-muted); margin-top: 10px; }
+
+/* ----- Tabelle ----- */
+.xl-scroll { overflow: auto; max-height: calc(94dvh - 330px); min-height: 120px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 1px 2px rgba(31,42,36,.08), 0 2px 8px rgba(31,42,36,.06); }
+.xl-tabelle { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; }
+.xl-tabelle th, .xl-tabelle td { padding: 9px 14px; text-align: left; border-bottom: 1px solid #EEE9DD; border-right: 1px solid #F3EFE6; vertical-align: top; white-space: nowrap; }
+.xl-tabelle th:last-child, .xl-tabelle td:last-child { border-right: none; }
+.xl-tabelle thead th { position: sticky; top: 0; z-index: 3; background: var(--tanne); color: #fff; font-weight: 700; border-right-color: rgba(255,255,255,.18); border-bottom: 3px solid var(--holz); }
+.xl-tabelle td.lang { white-space: normal; min-width: 220px; max-width: 420px; }
+.xl-tabelle td.zeilen { white-space: pre-line; }
+.xl-tabelle td.zahl, .xl-tabelle th.zahl { text-align: right; font-variant-numeric: tabular-nums; }
+.xl-tabelle tbody tr:nth-child(even) td { background: #FBF9F4; }
+.xl-tabelle tbody tr:hover td { background: var(--tanne-hell); }
+/* erste Spalte bleibt beim seitlichen Wischen stehen (wichtig auf dem Handy) */
+.xl-tabelle tbody td:first-child:not(.xl-titel), .xl-tabelle thead th:first-child { position: sticky; left: 0; z-index: 2; }
+.xl-tabelle thead th:first-child { z-index: 4; }
+.xl-tabelle tbody td:first-child:not(.xl-titel) { background: var(--holz-hell); font-weight: 600; color: #5C3E26; border-right: 2px solid #E3D3C2; }
+.xl-tabelle tbody tr:nth-child(even) td:first-child:not(.xl-titel) { background: #F5EADF; }
+.xl-tabelle td.xl-titel { white-space: normal; font-family: var(--font-head); font-size: 17px; font-weight: 600; color: var(--tanne); background: var(--surface) !important; border-right: none; padding: 12px 14px 6px; }
+.xl-tabelle tr.xl-aus { display: none; }
+.xl-tabelle td.xl-leerzelle { color: transparent; }
+
+/* ----- Schreibbereich & Versionen ----- */
+.xl-schreiben { padding: 14px 20px 18px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; max-height: 40vh; overflow: auto; }
+.xl-schreiben.hidden { display: none; }
+.xl-upload { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.xl-upload label { font-size: 13px; font-weight: 600; }
+.xl-upload input[type=file] { font-size: 13px; flex: 1 1 220px; min-width: 0; }
+.xl-meldung { font-size: 13px; margin-top: 8px; }
+.xl-versionen, .xl-spalten { margin-top: 12px; font-size: 14px; }
+.xl-versionen summary, .xl-spalten summary { cursor: pointer; font-weight: 600; color: var(--holz); min-height: 36px; display: flex; align-items: center; }
+.xl-versionen ul { list-style: none; display: grid; gap: 6px; margin-top: 6px; }
+.xl-versionen li { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--creme); border: 1px solid var(--border); border-radius: 12px; }
+.xl-versionen .xl-vmeta { font-size: 12px; color: var(--text-muted); }
+.xl-versionen .xl-btn { min-height: 34px; padding: 4px 10px; font-size: 13px; }
+.xl-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--tanne-hell); color: var(--tanne); font-size: 12px; font-weight: 700; }
+
+@media (max-width: 640px) {
+  .xl-overlay { padding: 0; align-items: flex-end; }
+  .xl-modal { border-radius: 20px 20px 0 0; max-height: 96dvh; }
+  .xl-leiste, .xl-inhalt, .xl-schreiben { padding-left: 14px; padding-right: 14px; }
+  .xl-tabs { padding-left: 14px; }
+  .xl-suche { width: 100%; }
+  .xl-werkzeuge { width: 100%; }
+  .xl-tabelle th, .xl-tabelle td { padding: 8px 10px; font-size: 13px; }
+  .xl-scroll { max-height: calc(96dvh - 360px); }
+}
+@media (prefers-reduced-motion: reduce) { .xl-overlay, .xl-btn, .xl-tab { transition: none; } }
+
+/* ----- Karte "Im Gibeli" (Startseite und Admin) ----- */
+.gb-karte { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--holz); border-radius: 14px; padding: 12px 16px 10px; box-shadow: 0 1px 2px rgba(31,42,36,.08), 0 2px 8px rgba(31,42,36,.06); font-family: var(--font-body); color: var(--text); }
+.gb-karte[hidden] { display: none; }
+.gb-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gb-kopf h2 { font-family: var(--font-head); font-size: 19px; color: var(--tanne); }
+.gb-klapp { background: none; border: 1.5px solid var(--border); border-radius: 10px; width: 40px; height: 36px; font-size: 16px; color: var(--tanne); cursor: pointer; }
+.gb-klapp:hover { background: var(--tanne-hell); }
+.gb-raster { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+.gb-box { background: var(--creme); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gb-label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; color: var(--text-muted); }
+.gb-gross { font-family: var(--font-head); font-size: 28px; font-weight: 600; color: var(--tanne); line-height: 1.1; margin-right: 6px; }
+.gb-box strong { font-size: 15px; color: var(--tanne); }
+.gb-klein { font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+.gb-zahl { color: var(--holz); font-weight: 600; }
+.gb-hinweis { font-size: 14px; color: var(--text-muted); margin-top: 8px; }
+.gb-fuss { margin-top: 8px; text-align: right; }
+.gb-link { background: none; border: none; color: var(--blau-text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; padding: 6px 0; text-decoration: underline; }
+.gb-link:hover { color: var(--tanne); }
+@media (max-width: 700px) { .gb-raster { grid-template-columns: 1fr; } }
+
+.xl-tabs[hidden], .xl-leiste[hidden], .gb-karte[hidden] { display: none !important; }
+
+.xl-titelblock { margin: 0 2px 10px; }
+.xl-titelblock h3 { font-family: var(--font-head); font-size: 20px; font-weight: 600; color: var(--tanne); line-height: 1.25; }
+.xl-treffer:empty { display: none; }
+@media (max-width: 640px) {
+  .xl-werkzeuge { flex-wrap: nowrap; }
+  .xl-suche { flex: 1 1 auto; width: auto !important; min-width: 0; }
+  .xl-download { flex-shrink: 0; }
+}

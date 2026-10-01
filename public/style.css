@@ -505,3 +505,6 @@ form { padding: 20px; }
 
 /* Toast darf umbrechen (lange Meldungen auf dem Handy) */
 .toast { white-space: normal; text-align: center; max-width: min(92vw, 520px); }
+
+.gb-wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+.gb-wrap:has(.gb-karte:not([hidden])) { margin-top: 16px; }

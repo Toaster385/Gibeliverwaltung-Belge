@@ -9,6 +9,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="login.css">
+  <link rel="stylesheet" href="/excel-ansicht.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -52,6 +53,9 @@
 
   <!-- Beleg-Warteschlange (kein Internet) -->
   <div id="queueBanner" class="queue-banner hidden" role="status"></div>
+
+  <!-- Im Gibeli: wer ist da, nächste Abreise / Anreise -->
+  <div class="gb-wrap"><section id="gibeliKarte" class="gb-karte" hidden aria-label="Im Gibeli"></section></div>
 
   <!-- Stats Bar -->
   <div class="stats-bar" id="statsBar">
@@ -244,6 +248,7 @@
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="/excel-ansicht.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

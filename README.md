@@ -77,6 +77,18 @@ npm test
 - **Schlechtes/kein Internet:** Neue Belege werden im Browser zwischengespeichert und automatisch gesendet, sobald wieder Verbindung besteht (ohne Doppelspeicherung). Die App lässt sich auf dem Startbildschirm installieren und startet auch offline.
 - **Export für die Buchhaltung:** Menü (⋮) → *Export (CSV)* für Verwaltung/Admin (Zeitraum oder aktive Periode, öffnet direkt in Excel).
 
+## Aktuelle Belegung, Gerichte und „Im Gibeli“
+
+Beide Tabellen (Menü ⋮) werden aus hochgeladenen Excel-Dateien (.xlsx, .xls, .ods) als Tabelle im Design der Website angezeigt:
+- Mehrere **Blätter als Reiter**, **Suche**, **Download-Knopf**, feste Kopfzeile und feste erste Spalte (auch auf dem Handy), verbundene Zellen, Titelzeilen.
+- **Datumsfelder** erscheinen als TT.MM.JJJJ (nicht als Excel-Zahlen).
+- **Versionen:** Beim Ersetzen bleiben die letzten 5 Dateien erhalten; berechtigte Personen können eine frühere Version wiederherstellen oder herunterladen. „Aus Anzeige entfernen“ löscht nichts endgültig.
+- Hochladen darf bei der Belegung Verwaltung/Admin, bei den Gerichten die Rolle `gerichte`/Admin. Alle Angemeldeten sehen die Tabellen.
+
+**Karte „Im Gibeli“** (oben auf der Startseite und im Admin-Bereich): zeigt aus der Belegung, **wie viele Personen zurzeit im Haus sind**, die **nächste Abreise** und die **nächste Anreise**.
+Voraussetzung ist eine Liste mit einer Zeile pro Aufenthalt und Spalten für Anreise- und Abreise-Datum (Überschriften wie *Anreise/Abreise*, *Von/Bis*, *Ankunft/Abfahrt*), optional *Name/Gruppe* und *Personen*.
+Werden die Spalten nicht erkannt, kann die Verwaltung sie im Fenster „Aktuelle Belegung“ unter **Spalten für die Übersicht** zuordnen. Kalender-Raster (Tage als Spalten) lassen sich nicht auswerten.
+
 ## LAN-Modus (lokal auf dem Mac, Zugriff im WLAN)
 
 Alternative zu Railway, gleicher Code und alle Funktionen, **Daten komplett getrennt von Railway**.

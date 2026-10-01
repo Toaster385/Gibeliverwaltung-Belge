@@ -40,6 +40,8 @@ const pub = f => (req, res) => res.sendFile(path.join(dirs.publicDir, f));
 app.get('/login.html', pub('login.html'));
 app.get('/login.css', pub('login.css'));
 app.get('/admin.html', pub('admin.html'));
+app.get('/excel-ansicht.js', pub('excel-ansicht.js'));
+app.get('/excel-ansicht.css', pub('excel-ansicht.css'));
 app.get('/manifest.webmanifest', (req, res) => { res.type('application/manifest+json'); pub('manifest.webmanifest')(req, res); });
 app.use('/fonts', express.static(path.join(dirs.publicDir, 'fonts'), { maxAge: '30d', immutable: true }));
 app.use('/icons', express.static(path.join(dirs.publicDir, 'icons'), { maxAge: '7d' }));

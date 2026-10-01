@@ -125,6 +125,35 @@ function beleg(felder, dateien = {}) {
   r = await api(anna, 'PUT', '/api/ich/pin', { pinAlt: '1111', pinNeu: '4444' }); ok(r.status === 200, 'PIN geändert');
   r = await login('Anna', '4444', '10.0.0.5'); ok(r.status === 200, 'Anmeldung mit neuem PIN');
 
+  console.log('Excel-Bereiche (Belegung / Gerichte): Versionen, Rechte, Download');
+  const xl = n => { const f = new FormData(); f.append('datei', new Blob(['xlsx-inhalt-' + n], { type: 'application/octet-stream' }), `datei${n}.xlsx`); return f; };
+  r = await api(anna, 'POST', '/api/belegung', null, xl(1)); ok(r.status === 403, 'Gast darf keine Belegung hochladen');
+  r = await api(vera, 'POST', '/api/gerichte', null, xl(1)); ok(r.status === 403, 'Verwaltung darf keine Gerichte hochladen (nur Rolle gerichte/Admin)');
+  for (let i = 1; i <= 7; i++) { r = await api(vera, 'POST', '/api/belegung', null, xl(i)); }
+  r = await api(vera, 'GET', '/api/belegung');
+  ok(r.json.dateiname === 'datei7.xlsx' && r.json.hochgeladen_von === 'Vera' && r.json.kannSchreiben, 'Aktuelle Version + Hochgeladen von');
+  ok(r.json.versionen.length === 5 && r.json.versionen[0].aktiv, 'Es bleiben genau die letzten 5 Versionen erhalten (7 hochgeladen)');
+  const alt = r.json.versionen[2];
+  r = await api(anna, 'GET', '/api/belegung'); ok(r.json.vorhanden && !r.json.kannSchreiben && !r.json.versionen, 'Gast sieht die Datei, aber keine Versionsliste');
+  r = await api(anna, 'GET', `/api/belegung/datei?version=${alt.id}`); ok(r.status === 403, 'Gast kann keine frühere Version abrufen');
+  r = await api(vera, 'GET', `/api/belegung/datei?version=${alt.id}&download=1`); ok(r.status === 200 && /attachment/.test(r.headers.get('content-disposition')) && r.text.startsWith('xlsx-inhalt'), 'Frühere Version herunterladbar (Download-Header)');
+  r = await api(anna, 'GET', '/api/belegung/datei?download=1'); ok(r.status === 200 && /datei7\.xlsx/.test(r.headers.get('content-disposition')), 'Aktuelle Datei für alle herunterladbar mit Originalnamen');
+  r = await api(anna, 'POST', `/api/belegung/versionen/${alt.id}/aktivieren`); ok(r.status === 403, 'Gast kann keine Version wiederherstellen');
+  r = await api(vera, 'POST', `/api/belegung/versionen/${alt.id}/aktivieren`); ok(r.status === 200, 'Version wiederherstellen');
+  r = await api(vera, 'GET', '/api/belegung'); ok(r.json.dateiname === alt.dateiname, 'Wiederhergestellte Version wird angezeigt');
+  r = await api(vera, 'DELETE', `/api/belegung/versionen/${alt.id}`); ok(r.status === 400, 'Angezeigte Version kann nicht entfernt werden');
+  r = await api(vera, 'DELETE', '/api/belegung'); r = await api(vera, 'GET', '/api/belegung');
+  ok(!r.json.vorhanden && r.json.versionen.length === 5, 'Aus Anzeige entfernen: Versionen bleiben erhalten');
+  const geliefert = r.json.versionen[0];
+  r = await api(vera, 'POST', `/api/belegung/versionen/${geliefert.id}/aktivieren`); ok(r.status === 200, 'Nach dem Entfernen wiederherstellbar');
+  r = await api(vera, 'PUT', '/api/belegung/spalten', { von: 'Anreise', bis: 'Abreise', name: 'Gruppe', personen: 'Personen', boese: 'x' });
+  ok(r.status === 200 && r.json.spalten.von === 'Anreise' && !r.json.spalten.boese, 'Spaltenzuordnung speichern (nur bekannte Felder)');
+  r = await api(anna, 'GET', '/api/belegung'); ok(r.json.spalten && r.json.spalten.bis === 'Abreise', 'Alle erhalten die Zuordnung (für die Übersicht „Im Gibeli“)');
+  r = await api(anna, 'PUT', '/api/belegung/spalten', { von: 'x' }); ok(r.status === 403, 'Gast kann die Spalten nicht ändern');
+  r = await api(admin, 'POST', '/api/gerichte', null, xl(9)); ok(r.status === 200, 'Admin darf Gerichte hochladen');
+  const bad = new FormData(); bad.append('datei', new Blob(['x']), 'text.txt');
+  r = await api(admin, 'POST', '/api/gerichte', null, bad); ok(r.status === 400 && r.json && r.json.error, 'Falscher Dateityp: Fehler als JSON (keine HTML-Seite)');
+
   console.log('Export & Protokoll');
   r = await api(anna, 'GET', '/api/export/belege.csv'); ok(r.status === 403, 'Export nur für Verwaltung/Admin');
   r = await api(vera, 'GET', '/api/export/belege.csv?von=2026-09-01&bis=2026-09-30&dezimal=komma');
