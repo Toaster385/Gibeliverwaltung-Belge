@@ -3,41 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Belegverwaltung</title>
+  <title>Belegverwaltung – Ferienhaus Gibeli</title>
+  <meta name="theme-color" content="#2F4A3A">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232F4A3A'/%3E%3Cpath d='M3 26L13 8l4.5 7.5L21 10l8 16z' fill='%236FA3BF'/%3E%3Cpath d='M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="login.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
     <div class="header-inner">
       <div class="logo">
-        <span class="logo-icon">🧾</span>
-        <h1>Belegverwaltung</h1>
+        <svg class="logo-icon" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#F7F4EE"/><path d="M3 26L13 8l4.5 7.5L21 10l8 16z" fill="#2F4A3A"/><path d="M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z" fill="#6FA3BF"/></svg>
+        <div><h1>Ferienhaus Gibeli</h1><span class="logo-sub">Belegverwaltung</span></div>
       </div>
       <div class="header-actions">
         <span class="header-user" id="headerUser"></span>
         <button class="btn btn-primary" id="btnNeuBeleg">+ Neuer Beleg</button>
-        <button class="btn-menu" id="btnMenu" aria-label="Menü">⋮</button>
+        <button class="btn-menu" id="btnMenu" aria-label="Menü" aria-haspopup="true">&#8942;</button>
       </div>
     </div>
   </header>
+  <div class="berge-banner" aria-hidden="true"></div>
 
   <!-- Sidebar -->
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <span id="sidebarUser"></span>
-      <button class="sidebar-close" id="sidebarClose">&times;</button>
+      <button class="sidebar-close" id="sidebarClose" aria-label="Menü schliessen">&times;</button>
     </div>
     <nav class="sidebar-menu">
-      <button class="sidebar-item" id="sidebarBelegung">📋 Aktuelle Belegung</button>
+      <button class="sidebar-item" id="sidebarBelegung"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg> Aktuelle Belegung</button>
       <div class="sidebar-divider"></div>
-      <button class="sidebar-item sidebar-item-danger" id="sidebarLogout">🚪 Abmelden</button>
+      <button class="sidebar-item sidebar-item-danger" id="sidebarLogout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4"/><path d="M16 8l4 4-4 4M20 12H9"/></svg> Abmelden</button>
     </nav>
   </aside>
 
   <!-- Kasse geschlossen Banner -->
-  <div id="kasseBanner" class="kasse-banner hidden">
-    🔒 Die Kasse ist geschlossen – keine Änderungen möglich.
+  <div id="kasseBanner" class="kasse-banner hidden" role="status">
+    Die Kasse ist geschlossen – keine Änderungen möglich.
   </div>
 
   <!-- Stats Bar -->
@@ -70,12 +77,12 @@
   <!-- Filter Bar -->
   <div class="filter-bar">
     <div class="filter-group">
-      <input type="text" id="filterSuche" placeholder="Geschäft, Notiz oder Belegnummer suchen..." class="input-field">
+      <input type="text" id="filterSuche" placeholder="Geschäft, Notiz oder Belegnummer suchen..." class="input-field" aria-label="Suchen">
     </div>
     <div class="filter-group filter-dates">
-      <input type="date" id="filterVon" class="input-field" title="Von">
+      <input type="date" id="filterVon" class="input-field" title="Von" aria-label="Von">
       <span>–</span>
-      <input type="date" id="filterBis" class="input-field" title="Bis">
+      <input type="date" id="filterBis" class="input-field" title="Bis" aria-label="Bis">
     </div>
     <button class="btn btn-secondary" id="btnFilterReset">Filter zurücksetzen</button>
   </div>
@@ -84,9 +91,9 @@
   <main class="main-content">
     <div id="belegeGrid" class="belege-grid"></div>
     <div id="emptyState" class="empty-state hidden">
-      <div class="empty-icon">🧾</div>
+      <div class="empty-icon"><svg viewBox="0 0 120 72" aria-hidden="true"><path d="M0 72L30 24l14 18 16-30 22 36 10-12 28 36z" fill="#6FA3BF"/><path d="M60 12L50 30l6-3 4 5 5-4 6 3z" fill="#fff"/><path d="M0 72L22 44l12 14 14-20 18 34z" fill="#2F4A3A"/><path d="M48 38l-6 10 4-2 2 3 3-3 3 2z" fill="#fff" opacity=".9"/></svg></div>
       <h2>Keine Belege vorhanden</h2>
-      <p>Füge deinen ersten Beleg hinzu!</p>
+      <p>Hier ist noch alles ruhig wie auf der Alp. Füge deinen ersten Beleg hinzu!</p>
       <button class="btn btn-primary" onclick="document.getElementById('btnNeuBeleg').click()">+ Neuer Beleg</button>
     </div>
   </main>
@@ -96,7 +103,7 @@
     <div class="modal">
       <div class="modal-header">
         <h2 id="modalTitel">Neuer Beleg</h2>
-        <button class="modal-close" id="modalClose">&times;</button>
+        <button class="modal-close" id="modalClose" aria-label="Schliessen">&times;</button>
       </div>
       <form id="formBeleg" novalidate>
         <input type="hidden" id="belegId">
@@ -133,13 +140,13 @@
             <div class="upload-area" id="uploadArea">
               <input type="file" id="feldDatei" accept="image/*,.pdf" class="file-input">
               <div class="upload-placeholder" id="uploadPlaceholder">
-                <span class="upload-icon">📎</span>
+                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
                 <span>Datei auswählen oder hierher ziehen</span>
                 <span class="upload-hint">JPG, PNG, PDF – max. 10 MB</span>
               </div>
               <div class="upload-preview hidden" id="uploadPreview">
                 <img id="previewImg" src="" alt="Vorschau" class="hidden">
-                <span id="previewPdf" class="pdf-preview hidden">📄</span>
+                <span id="previewPdf" class="pdf-preview hidden">PDF</span>
                 <span id="previewName"></span>
                 <button type="button" class="btn-remove-file" id="btnRemoveFile">&times;</button>
               </div>
@@ -164,7 +171,7 @@
     <div class="modal modal-preview">
       <div class="modal-header">
         <h2 id="previewTitel">Beleg-Vorschau</h2>
-        <button class="modal-close" id="previewClose">&times;</button>
+        <button class="modal-close" id="previewClose" aria-label="Schliessen">&times;</button>
       </div>
       <div class="preview-content" id="previewContent"></div>
     </div>
@@ -174,8 +181,8 @@
   <div class="modal-overlay" id="belegungOverlay">
     <div class="modal modal-belegung">
       <div class="modal-header">
-        <h2>📋 Aktuelle Belegung</h2>
-        <button class="modal-close" id="belegungClose">&times;</button>
+        <h2>Aktuelle Belegung</h2>
+        <button class="modal-close" id="belegungClose" aria-label="Schliessen">&times;</button>
       </div>
       <div id="belegungModalContent" style="padding:20px;overflow:auto;max-height:60vh;"></div>
       <div id="belegungUploadArea" class="hidden" style="padding:14px 20px 20px;border-top:1px solid var(--border);background:var(--bg);">
@@ -191,7 +198,7 @@
   </div>
 
   <!-- Toast -->
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>

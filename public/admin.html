@@ -3,89 +3,114 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin – Belegverwaltung</title>
+  <title>Admin – Ferienhaus Gibeli</title>
+  <meta name="theme-color" content="#2F4A3A">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232F4A3A'/%3E%3Cpath d='M3 26L13 8l4.5 7.5L21 10l8 16z' fill='%236FA3BF'/%3E%3Cpath d='M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="login.css">
   <style>
-    body { background: linear-gradient(135deg, #1f2937 0%, #374151 100%); align-items: flex-start; padding: 32px 24px; }
-    .admin-wrapper { width: 100%; max-width: 760px; margin: 0 auto; }
-    .admin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-    .admin-header h1 { color: white; font-size: 22px; font-weight: 700; }
-    .admin-header a { color: rgba(255,255,255,.7); font-size: 13px; text-decoration: none; }
-    .admin-header a:hover { color: white; }
-    .card { background: white; border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.2); overflow-x: auto; }
-    .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #111827; display: flex; align-items: center; gap: 8px; }
-    .card h3 { font-size: 14px; font-weight: 700; color: #374151; margin: 20px 0 12px; display: flex; align-items: center; gap: 6px; }
-    .card-divider { border: none; border-top: 1px solid #f3f4f6; margin: 20px 0; }
+    /* Admin-Bereich: gleicher Stil, dezent mit Holzbraun abgesetzt */
+    .admin-bar { background: var(--tanne); border-bottom: 5px solid var(--holz); color: #fff; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(14,26,19,.25); }
+    .admin-bar-inner { max-width: 960px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .admin-bar h1 { font-size: 21px; color: #fff; line-height: 1.1; }
+    .admin-bar h1 small { display: block; font-family: var(--font-body); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #E8CDB4; margin-top: 2px; }
+    .admin-bar-links { display: flex; gap: 6px; align-items: center; }
+    .admin-bar a { color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: var(--radius); transition: background var(--t); }
+    .admin-bar a:hover { background: rgba(255,255,255,.15); color: #fff; }
+    .admin-bar a.logout { border: 1.5px solid rgba(255,255,255,.4); }
+    .admin-bar :focus-visible { outline-color: #fff; }
+    .admin-wrapper { width: 100%; max-width: 960px; margin: 0 auto; padding: 8px 16px 56px; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-top: 4px solid var(--holz); border-radius: var(--radius); padding: 22px; margin-bottom: 18px; box-shadow: var(--shadow); overflow-x: auto; }
+    .card h2 { font-size: 20px; margin-bottom: 16px; color: var(--tanne); display: flex; align-items: center; gap: 8px; }
+    .card h3 { font-size: 17px; color: var(--holz); margin: 18px 0 8px; display: flex; align-items: center; gap: 6px; }
+    .card-divider { border: none; border-top: 1px dashed var(--border); margin: 20px 0; }
+    .card p { color: var(--text-muted); }
     .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .stat-box { background: #f9fafb; border-radius: 10px; padding: 16px; }
-    .stat-box .label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
-    .stat-box .value { font-size: 20px; font-weight: 700; color: #4f46e5; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th { text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #9ca3af; letter-spacing: .5px; border-bottom: 2px solid #f3f4f6; }
-    td { padding: 10px; border-bottom: 1px solid #f9fafb; color: #374151; vertical-align: middle; }
+    .stat-box { background: var(--creme); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+    .stat-box .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin-bottom: 2px; }
+    .stat-box .value { font-family: var(--font-head); font-size: 24px; font-weight: 600; color: var(--tanne); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 520px; }
+    th { text-align: left; padding: 8px 10px; font-size: 12px; text-transform: uppercase; color: var(--holz); letter-spacing: .06em; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    td { padding: 10px; border-bottom: 1px solid #EEE9DD; color: var(--text); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
-    .badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-    .badge-eingetragen { background: #d1fae5; color: #065f46; }
-    .badge-ausstehend { background: #fef3c7; color: #92400e; }
-    .badge-aktiv { background: #d1fae5; color: #065f46; }
-    .badge-inaktiv { background: #f3f4f6; color: #6b7280; }
-    .btn-sm { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
-    .btn-danger { background: #fee2e2; color: #991b1b; }
-    .btn-danger:hover { background: #fecaca; }
-    .btn-status { background: #ede9fe; color: #5b21b6; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
-    .btn-status:hover { background: #ddd6fe; }
-    .btn-add { padding: 10px 18px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .btn-add:hover { background: #3730a3; }
-    .btn-open { background: #d1fae5; color: #065f46; padding: 10px 20px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; }
-    .btn-open:hover { background: #a7f3d0; }
-    .btn-close { background: #fee2e2; color: #991b1b; padding: 10px 20px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; }
-    .btn-close:hover { background: #fecaca; }
-    .btn-activate { background: #ede9fe; color: #5b21b6; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
-    .btn-activate:hover { background: #ddd6fe; }
-    .btn-deactivate { background: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
-    .btn-deactivate:hover { background: #fde68a; }
-    .btn-rolle { padding: 3px 10px; border-radius: 6px; border: 1.5px solid #e5e7eb; background: #f9fafb; color: #6b7280; font-size: 11px; font-weight: 600; cursor: pointer; margin: 2px; }
-    .btn-rolle.active { background: #4f46e5; color: white; border-color: #4f46e5; }
-    .btn-rolle:hover:not(:disabled):not(.active) { background: #ede9fe; border-color: #a5b4fc; color: #4f46e5; }
-    .btn-rolle:disabled { opacity: .5; cursor: not-allowed; }
+    tbody tr:hover td { background: #FBF9F4; }
+    .td-actions { white-space: nowrap; }
+    .td-actions > * + * { margin-left: 6px; }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .badge-eingetragen, .badge-aktiv { background: var(--tanne-hell); color: var(--tanne); }
+    .badge-ausstehend { background: var(--holz-hell); color: #6E4829; }
+    .badge-inaktiv { background: #EEEBE4; color: var(--text-muted); }
+
+    .btn-sm, .btn-status, .btn-activate, .btn-deactivate { min-height: 40px; padding: 6px 14px; border-radius: var(--radius); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: 1.5px solid transparent; transition: background var(--t), color var(--t), border-color var(--t); }
+    .btn-danger { background: var(--surface); color: var(--rot-dunkel); border-color: var(--rot); }
+    .btn-danger:hover { background: var(--rot); color: #fff; }
+    .btn-status, .btn-activate { background: var(--surface); color: var(--tanne); border-color: var(--tanne); }
+    .btn-status:hover, .btn-activate:hover { background: var(--tanne-hell); }
+    .btn-deactivate { background: var(--holz-hell); color: #6E4829; border-color: var(--holz); }
+    .btn-deactivate:hover { background: #E6D5C5; }
+
+    .btn-add { min-height: 48px; padding: 10px 20px; background: var(--rot); color: #fff; border: none; border-radius: var(--radius); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: var(--shadow); transition: background var(--t), box-shadow var(--t), transform var(--t); }
+    .btn-add:hover { background: var(--rot-dunkel); box-shadow: var(--shadow-md); }
+    .btn-add:active { transform: translateY(1px); }
+    .btn-open { background: var(--tanne); color: #fff; min-height: 48px; padding: 10px 20px; border-radius: var(--radius); border: none; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: background var(--t); }
+    .btn-open:hover { background: var(--tanne-dunkel); }
+    .btn-close { background: var(--surface); color: var(--rot-dunkel); border: 1.5px solid var(--rot); min-height: 48px; padding: 10px 20px; border-radius: var(--radius); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: background var(--t), color var(--t); }
+    .btn-close:hover { background: var(--rot); color: #fff; }
+
+    .btn-rolle { min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; margin: 2px; transition: background var(--t), color var(--t), border-color var(--t); }
+    .btn-rolle.active { background: var(--holz); color: #fff; border-color: var(--holz); }
+    .btn-rolle:hover:not(:disabled):not(.active) { background: var(--holz-hell); border-color: var(--holz); color: #6E4829; }
+    .btn-rolle:disabled { opacity: .6; cursor: not-allowed; }
+
     .kasse-status-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-    .kasse-info { font-size: 14px; color: #374151; }
-    .kasse-hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
-    .aktive-periode-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #1e40af; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .kasse-info { font-size: 15px; }
+    .kasse-hint { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .aktive-periode-box { background: var(--blau-hell); border: 1px solid var(--blau); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 14px; color: #1F4E66; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
     .periode-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 16px; }
-    .periode-form .form-group { margin-bottom: 0; }
+    .periode-form .form-group, .add-user-form .form-group { margin-bottom: 0; }
     .add-user-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 20px; }
-    .add-user-form .form-group { margin-bottom: 0; }
-    /* Bottom section toggle buttons */
+
     .section-toggles { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; padding: 8px 0 24px; }
-    .btn-section-toggle { background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.25); border-radius: 10px; padding: 12px 24px; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.85); cursor: pointer; transition: all .15s; }
-    .btn-section-toggle:hover { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.5); color: white; }
-    .btn-section-toggle.active { background: white; border-color: white; color: #4f46e5; }
+    .btn-section-toggle { min-height: 48px; background: var(--surface); border: 1.5px solid var(--holz); border-radius: var(--radius); padding: 10px 22px; font: inherit; font-size: 15px; font-weight: 600; color: #6E4829; cursor: pointer; transition: background var(--t), color var(--t); box-shadow: var(--shadow); }
+    .btn-section-toggle:hover { background: var(--holz-hell); }
+    .btn-section-toggle.active { background: var(--holz); border-color: var(--holz); color: #fff; }
+
+    /* Anmeldung: Vollbild wie die Login-Seite */
     .login-section { display: none; }
-    .login-section.active { display: block; }
+    .login-section.active { display: flex; position: fixed; inset: 0; z-index: 400; overflow-y: auto; align-items: center; justify-content: center; padding: 24px 16px 120px; background: linear-gradient(180deg, #274034 0%, #3F6A66 48%, #8FB6C8 100%); }
+    .login-section .login-wrapper { margin: auto; }
+    .back-link { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 8px; color: #fff; text-decoration: none; font-size: 14px; font-weight: 600; }
+    .back-link:hover { color: #fff; text-decoration: underline; }
+    .back-link:focus-visible { outline-color: #fff; }
     .main-section { display: none; }
     .main-section.active { display: block; }
-    .back-link { display: inline-block; margin-bottom: 16px; color: rgba(255,255,255,.7); text-decoration: none; font-size: 13px; }
-    .back-link:hover { color: white; }
-    @media(max-width:600px) {
-      .add-user-form { grid-template-columns: 1fr; }
-      .periode-form { grid-template-columns: 1fr; }
+
+    @media (max-width: 700px) {
+      .add-user-form, .periode-form { grid-template-columns: 1fr; }
       .stats-grid { grid-template-columns: 1fr; }
       .kasse-status-row { flex-direction: column; align-items: flex-start; }
       .section-toggles { flex-direction: column; }
+      .btn-section-toggle { width: 100%; }
+      .admin-bar h1 { font-size: 18px; }
+      .card { padding: 16px; }
     }
   </style>
 </head>
 <body>
-  <div class="admin-wrapper">
     <!-- Login Section -->
-    <div id="loginSection" class="login-section active">
+    <div id="loginSection" class="login-section login-bg active">
+     <div class="login-wrapper">
       <a href="/login.html" class="back-link">← Zurück zur Anmeldung</a>
       <div class="login-card">
         <div class="login-logo">
-          <span>⚙️</span>
+          <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#8B5E3C"/><path d="M3 26L13 8l4.5 7.5L21 10l8 16z" fill="#F7F4EE"/><path d="M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z" fill="#6FA3BF"/></svg>
           <h1>Admin-Bereich</h1>
-          <p>Nur für Administratoren</p>
+          <p>Ferienhaus Gibeli · nur für Administratoren</p>
         </div>
         <form id="adminLoginForm" novalidate>
           <div class="form-group">
@@ -96,25 +121,30 @@
             <label for="adminPass">Passwort</label>
             <input type="password" id="adminPass" class="input-field" placeholder="Admin-Passwort" autocomplete="off">
           </div>
-          <div class="error-msg hidden" id="adminError"></div>
+          <div class="error-msg hidden" id="adminError" role="alert"></div>
           <button type="button" class="btn-login" id="btnAdminLogin">Anmelden</button>
         </form>
       </div>
+     </div>
     </div>
 
     <!-- Main Admin Section -->
     <div id="mainSection" class="main-section">
-      <div class="admin-header">
-        <h1>⚙️ Admin-Bereich</h1>
-        <div style="display:flex;gap:12px;align-items:center">
-          <a href="/">Zur App →</a>
-          <a href="#" id="btnAdminLogout" style="color:#ef4444">Abmelden</a>
+      <header class="admin-bar">
+        <div class="admin-bar-inner">
+          <h1>Ferienhaus Gibeli<small>Admin-Bereich</small></h1>
+          <nav class="admin-bar-links" aria-label="Admin-Navigation">
+            <a href="/">Zur App</a>
+            <a href="#" id="btnAdminLogout" class="logout">Abmelden</a>
+          </nav>
         </div>
-      </div>
+      </header>
+      <div class="berge-banner" aria-hidden="true"></div>
+      <div class="admin-wrapper">
 
       <!-- 1. Übersicht -->
       <div class="card">
-        <h2>📊 Übersicht</h2>
+        <h2>Übersicht</h2>
         <div class="stats-grid">
           <div class="stat-box"><div class="label">Belege gesamt</div><div class="value" id="statBelege">–</div></div>
           <div class="stat-box"><div class="label">Gesamtbetrag EUR</div><div class="value" id="statBetragEUR">–</div></div>
@@ -124,7 +154,7 @@
 
       <!-- 2. Kasse & Perioden (combined) -->
       <div class="card">
-        <h2>🔒 Kasse &amp; Perioden</h2>
+        <h2>Kasse &amp; Perioden</h2>
 
         <!-- Kasse Status -->
         <div class="kasse-status-row">
@@ -138,8 +168,8 @@
         <hr class="card-divider">
 
         <!-- Perioden -->
-        <h3>📅 Perioden</h3>
-        <p style="font-size:12px;color:#6b7280;margin-bottom:14px;">Erstelle einen Abrechnungszeitraum (z.B. ein Jahr). Beim Aktivieren öffnet die Kasse automatisch, beim Beenden schließt sie.</p>
+        <h3>Perioden</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Erstelle einen Abrechnungszeitraum (z.B. ein Jahr). Beim Aktivieren öffnet die Kasse automatisch, beim Beenden schließt sie.</p>
 
         <div id="aktivePeriodeInfo" class="aktive-periode-box" style="display:none;">
           <span id="aktivePeriodeText"></span>
@@ -172,7 +202,7 @@
 
       <!-- 3. Alle Belege -->
       <div class="card">
-        <h2>🧾 Alle Belege</h2>
+        <h2>Alle Belege</h2>
         <table>
           <thead>
             <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Status</th><th>Aktionen</th></tr>
@@ -183,22 +213,22 @@
 
       <!-- Bottom toggle buttons -->
       <div class="section-toggles">
-        <button class="btn-section-toggle" id="btnToggleBelegung">📋 Aktuelle Belegung</button>
-        <button class="btn-section-toggle" id="btnToggleBenutzer" onclick="toggleSection('benutzer')">👥 Benutzerverwaltung</button>
-        <button class="btn-section-toggle" id="btnToggleProfil" onclick="toggleSection('profil')">👤 Profil ändern</button>
+        <button class="btn-section-toggle" id="btnToggleBelegung">Aktuelle Belegung</button>
+        <button class="btn-section-toggle" id="btnToggleBenutzer" onclick="toggleSection('benutzer')">Benutzerverwaltung</button>
+        <button class="btn-section-toggle" id="btnToggleProfil" onclick="toggleSection('profil')">Profil ändern</button>
       </div>
 
       <!-- Modal: Aktuelle Belegung -->
-      <div id="belegungModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;padding:24px;">
-        <div style="background:white;border-radius:16px;width:100%;max-width:1000px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);">
-          <div style="padding:20px 24px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-            <h2 style="font-size:18px;font-weight:700;color:#111827;">📋 Aktuelle Belegung</h2>
-            <button onclick="schliesseBelegungModal()" style="background:none;border:none;font-size:26px;cursor:pointer;color:#6b7280;line-height:1;padding:0 4px;">&times;</button>
+      <div id="belegungModal" style="display:none;position:fixed;inset:0;background:rgba(20,32,25,.6);z-index:500;align-items:center;justify-content:center;padding:24px;">
+        <div style="background:white;border-radius:20px;width:100%;max-width:1000px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+          <div style="padding:14px 20px;background:var(--tanne);border-bottom:4px solid var(--holz);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+            <h2 style="font-size:20px;color:#fff;">Aktuelle Belegung</h2>
+            <button onclick="schliesseBelegungModal()" aria-label="Schliessen" style="background:rgba(255,255,255,.12);border:none;font-size:26px;cursor:pointer;color:#fff;line-height:1;width:44px;height:44px;border-radius:12px;">&times;</button>
           </div>
           <div id="belegungContent" style="padding:20px;overflow:auto;flex:1;"></div>
-          <div style="padding:14px 24px 20px;border-top:1px solid #f3f4f6;background:#f9fafb;flex-shrink:0;">
+          <div style="padding:14px 24px 20px;border-top:1px solid var(--border);background:var(--creme);flex-shrink:0;">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <label style="font-size:13px;font-weight:600;color:#374151;white-space:nowrap;">Hochladen / ersetzen:</label>
+              <label style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;">Hochladen / ersetzen:</label>
               <input type="file" id="belegungDateiInput" accept=".xlsx,.xls,.ods" style="font-size:13px;flex:1;min-width:0;">
               <button class="btn-add" id="btnBelegungUpload" style="padding:8px 16px;font-size:13px;white-space:nowrap;">Hochladen</button>
               <button class="btn-sm btn-danger" id="btnBelegungLoeschen" style="padding:8px 16px;font-size:13px;white-space:nowrap;">Löschen</button>
@@ -211,7 +241,7 @@
       <!-- Collapsible: Benutzerverwaltung -->
       <div id="section-benutzer" style="display:none;">
         <div class="card">
-          <h2>👥 Benutzerverwaltung</h2>
+          <h2>Benutzerverwaltung</h2>
           <div class="add-user-form">
             <div class="form-group">
               <label>Benutzername</label>
@@ -243,29 +273,29 @@
       <!-- Collapsible: Profil -->
       <div id="section-profil" style="display:none;">
         <div class="card">
-          <h2>👤 Mein Profil ändern</h2>
+          <h2>Mein Profil ändern</h2>
           <div style="display:grid;gap:12px;max-width:400px;">
             <div class="form-group">
-              <label>Neuer Benutzername <span style="color:#9ca3af;font-weight:400">(leer = unverändert)</span></label>
+              <label>Neuer Benutzername <span style="color:var(--text-muted);font-weight:400">(leer = unverändert)</span></label>
               <input type="text" id="profilName" class="input-field" placeholder="Neuer Name">
             </div>
             <div class="form-group">
-              <label>Neues Passwort <span style="color:#9ca3af;font-weight:400">(leer = unverändert)</span></label>
+              <label>Neues Passwort <span style="color:var(--text-muted);font-weight:400">(leer = unverändert)</span></label>
               <input type="password" id="profilPasswortNeu" class="input-field" placeholder="Neues Passwort (min. 4 Zeichen)">
             </div>
             <div class="form-group">
-              <label>Aktuelles Passwort <span style="color:#ef4444">*</span></label>
+              <label>Aktuelles Passwort <span style="color:var(--rot)">*</span></label>
               <input type="password" id="profilPasswortAktuell" class="input-field" placeholder="Zur Bestätigung erforderlich">
             </div>
             <div id="profilError" class="error-msg hidden"></div>
-            <div id="profilSuccess" style="background:#d1fae5;color:#065f46;padding:10px 14px;border-radius:8px;font-size:13px;display:none;">✓ Profil erfolgreich aktualisiert!</div>
+            <div id="profilSuccess" style="background:var(--tanne-hell);color:var(--tanne);padding:10px 14px;border-radius:12px;font-size:13px;display:none;">✓ Profil erfolgreich aktualisiert!</div>
             <button class="btn-add" id="btnSpeichernProfil">Speichern</button>
           </div>
         </div>
       </div>
 
+      </div><!-- end admin-wrapper -->
     </div><!-- end mainSection -->
-  </div><!-- end admin-wrapper -->
 
   <script>
     // Auto-login if session still active
@@ -442,13 +472,13 @@
               '<td>' + esc(b.geschaeft) + '</td>' +
               '<td><strong>' + fmt(b.betrag, b.waehrung) + '</strong></td>' +
               '<td><span class="badge ' + (istEingetragen ? 'badge-eingetragen' : 'badge-ausstehend') + '">' +
-                (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') + '</span></td>' +
-              '<td style="white-space:nowrap;display:flex;gap:6px;">' +
+                (istEingetragen ? '✓ Eingetragen' : 'Ausstehend') + '</span></td>' +
+              '<td class="td-actions">' +
                 '<button class="btn-sm btn-status" onclick="toggleStatus(' + b.id + ',\'' + b.status + '\')">' +
                   (istEingetragen ? 'Ausstehend' : 'Eingetragen') + '</button>' +
                 '<button class="btn-sm btn-danger" onclick="loescheBeleg(' + b.id + ')">Löschen</button>' +
               '</td></tr>';
-          }).join('') || '<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:20px;">Keine Belege vorhanden</td></tr>';
+          }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Keine Belege vorhanden</td></tr>';
         } catch(e) {}
       };
       xhr.send();
@@ -502,10 +532,10 @@
           var statusEl = document.getElementById('kasseStatusText');
           var btn = document.getElementById('btnToggleKasse');
           if (geschlossen) {
-            statusEl.textContent = '🔒 Geschlossen'; statusEl.style.color = '#991b1b';
+            statusEl.textContent = 'Geschlossen'; statusEl.style.color = 'var(--rot-dunkel)';
             btn.textContent = 'Kasse öffnen'; btn.className = 'btn-open';
           } else {
-            statusEl.textContent = '🟢 Geöffnet'; statusEl.style.color = '#065f46';
+            statusEl.textContent = 'Geöffnet'; statusEl.style.color = 'var(--tanne)';
             btn.textContent = 'Kasse schließen'; btn.className = 'btn-close';
           }
           btn.onclick = function() { toggleKasse(geschlossen); };
@@ -587,13 +617,13 @@
               '<td>' + fmtEUR(s.summe_eur || 0) + '</td>' +
               '<td>' + fmtCHF(s.summe_chf || 0) + '</td>' +
               '<td><span class="badge ' + (istAktiv ? 'badge-aktiv' : 'badge-inaktiv') + '">' + (istAktiv ? '✓ Aktiv' : 'Inaktiv') + '</span></td>' +
-              '<td style="white-space:nowrap;display:flex;gap:6px;">' +
+              '<td class="td-actions">' +
                 (!istAktiv
                   ? '<button class="btn-activate" onclick="aktivierePeriode(' + p.id + ')">Aktivieren</button>'
                   : '<button class="btn-deactivate" onclick="deaktivierePeriode()">Beenden</button>') +
                 '<button class="btn-sm btn-danger" onclick="loeschePeriode(' + p.id + ')">Löschen</button>' +
               '</td></tr>';
-          }).join('') || '<tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:20px;">Noch keine Perioden angelegt</td></tr>';
+          }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Noch keine Perioden angelegt</td></tr>';
         } catch(e) {}
       };
       xhr.send();
@@ -679,13 +709,13 @@
 
     function ladeBelegungInfo() {
       var content = document.getElementById('belegungContent');
-      content.innerHTML = '<p style="color:#6b7280;text-align:center;padding:40px 0;">Wird geladen...</p>';
+      content.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px 0;">Wird geladen...</p>';
       var xhr = new XMLHttpRequest();
       xhr.open('GET', '/api/belegung', true);
       xhr.onreadystatechange = function() {
         if (xhr.readyState !== 4) return;
         try { zeigeBelegungInhalt(JSON.parse(xhr.responseText)); }
-        catch(e) { content.innerHTML = '<p style="color:#991b1b;text-align:center;">Fehler beim Laden</p>'; }
+        catch(e) { content.innerHTML = '<p style="color:var(--rot-dunkel);text-align:center;">Fehler beim Laden</p>'; }
       };
       xhr.send();
     }
@@ -696,8 +726,8 @@
       if (!data.vorhanden) {
         content.innerHTML =
           '<div style="text-align:center;padding:40px 20px;">' +
-          '<div style="font-size:48px;opacity:.4;margin-bottom:12px;">📋</div>' +
-          '<p style="color:#6b7280;">Noch keine Belegung hochgeladen.</p>' +
+          '<svg viewBox="0 0 120 72" width="96" height="58" aria-hidden="true" style="margin-bottom:12px;"><path d="M0 72L30 24l14 18 16-30 22 36 10-12 28 36z" fill="#6FA3BF"/><path d="M60 12L50 30l6-3 4 5 5-4 6 3z" fill="#fff"/><path d="M0 72L22 44l12 14 14-20 18 34z" fill="#2F4A3A"/></svg>' +
+          '<p style="color:var(--text-muted);">Noch keine Belegung hochgeladen.</p>' +
           '</div>';
         if (btnDel) btnDel.style.visibility = 'hidden';
         return;
@@ -708,9 +738,9 @@
       content.innerHTML =
         '<div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
           '<strong>📄 ' + esc(data.dateiname) + '</strong>' +
-          (hochgeladenAm ? '<span style="color:#6b7280;font-size:12px;">Hochgeladen: ' + hochgeladenAm + '</span>' : '') +
+          (hochgeladenAm ? '<span style="color:var(--text-muted);font-size:12px;">Hochgeladen: ' + hochgeladenAm + '</span>' : '') +
         '</div>' +
-        '<div id="belegungTabelle"><p style="color:#6b7280;font-size:13px;">Tabelle wird geladen...</p></div>';
+        '<div id="belegungTabelle"><p style="color:var(--text-muted);font-size:13px;">Tabelle wird geladen...</p></div>';
       ladeXLSXUndRendere();
     }
 
@@ -721,7 +751,7 @@
       script.onload = fetchUndRendereExcel;
       script.onerror = function() {
         var t = document.getElementById('belegungTabelle');
-        if (t) t.innerHTML = '<p style="color:#991b1b;">Excel-Bibliothek konnte nicht geladen werden.</p>';
+        if (t) t.innerHTML = '<p style="color:var(--rot-dunkel);">Excel-Bibliothek konnte nicht geladen werden.</p>';
       };
       document.head.appendChild(script);
     }
@@ -734,20 +764,20 @@
         if (xhr.readyState !== 4) return;
         var t = document.getElementById('belegungTabelle');
         if (!t) return;
-        if (xhr.status !== 200) { t.innerHTML = '<p style="color:#991b1b;">Datei konnte nicht geladen werden.</p>'; return; }
+        if (xhr.status !== 200) { t.innerHTML = '<p style="color:var(--rot-dunkel);">Datei konnte nicht geladen werden.</p>'; return; }
         try {
           var wb = XLSX.read(new Uint8Array(xhr.response), { type: 'array' });
           var ws = wb.Sheets[wb.SheetNames[0]];
           var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-          if (!rows.length) { t.innerHTML = '<p style="color:#6b7280;">Die Tabelle ist leer.</p>'; return; }
+          if (!rows.length) { t.innerHTML = '<p style="color:var(--text-muted);">Die Tabelle ist leer.</p>'; return; }
           var html = '<div style="overflow:auto;max-height:50vh;"><table style="border-collapse:collapse;font-size:13px;min-width:100%;"><tbody>';
           rows.forEach(function(row, ri) {
             html += '<tr>';
             (row || []).forEach(function(cell) {
               var tag = ri === 0 ? 'th' : 'td';
               var style = ri === 0
-                ? 'border:1px solid #e5e7eb;padding:6px 10px;background:#f3f4f6;font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:1;'
-                : 'border:1px solid #e5e7eb;padding:6px 10px;white-space:nowrap;';
+                ? 'border:1px solid var(--border);padding:6px 10px;background:var(--tanne-hell);color:var(--tanne);font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:1;'
+                : 'border:1px solid var(--border);padding:6px 10px;white-space:nowrap;';
               html += '<' + tag + ' style="' + style + '">' + esc(String(cell === null || cell === undefined ? '' : cell)) + '</' + tag + '>';
             });
             html += '</tr>';
@@ -755,7 +785,7 @@
           html += '</tbody></table></div>';
           t.innerHTML = html;
         } catch(e) {
-          t.innerHTML = '<p style="color:#991b1b;">Fehler beim Lesen der Datei: ' + esc(e.message || '') + '</p>';
+          t.innerHTML = '<p style="color:var(--rot-dunkel);">Fehler beim Lesen der Datei: ' + esc(e.message || '') + '</p>';
         }
       };
       xhr.send();
@@ -767,7 +797,7 @@
       msg.style.display = 'none';
       if (!input.files || !input.files[0]) {
         msg.textContent = 'Bitte eine Excel-Datei auswählen.';
-        msg.style.color = '#991b1b'; msg.style.display = 'block';
+        msg.style.color = 'var(--rot-dunkel)'; msg.style.display = 'block';
         return;
       }
       var btn = document.getElementById('btnBelegungUpload');
@@ -783,17 +813,17 @@
           var data = JSON.parse(xhr.responseText);
           if (xhr.status !== 200) {
             msg.textContent = data.error || 'Fehler beim Hochladen.';
-            msg.style.color = '#991b1b'; msg.style.display = 'block';
+            msg.style.color = 'var(--rot-dunkel)'; msg.style.display = 'block';
             return;
           }
           input.value = '';
           msg.textContent = '✓ Erfolgreich hochgeladen!';
-          msg.style.color = '#065f46'; msg.style.display = 'block';
+          msg.style.color = 'var(--tanne)'; msg.style.display = 'block';
           setTimeout(function() { msg.style.display = 'none'; }, 3000);
           ladeBelegungInfo();
         } catch(e) {
           msg.textContent = 'Fehler beim Hochladen.';
-          msg.style.color = '#991b1b'; msg.style.display = 'block';
+          msg.style.color = 'var(--rot-dunkel)'; msg.style.display = 'block';
         }
       };
       xhr.send(formData);

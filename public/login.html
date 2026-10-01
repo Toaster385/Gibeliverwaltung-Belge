@@ -3,16 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Anmelden – Belegverwaltung</title>
+  <title>Anmelden – Ferienhaus Gibeli</title>
+  <meta name="theme-color" content="#2F4A3A">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232F4A3A'/%3E%3Cpath d='M3 26L13 8l4.5 7.5L21 10l8 16z' fill='%236FA3BF'/%3E%3Cpath d='M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="login.css">
 </head>
-<body>
+<body class="login-page">
   <div class="login-wrapper">
     <div class="login-card">
       <div class="login-logo">
-        <span>🧾</span>
-        <h1>Belegverwaltung</h1>
-        <p>Bitte melde dich an</p>
+        <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#2F4A3A"/><path d="M3 26L13 8l4.5 7.5L21 10l8 16z" fill="#6FA3BF"/><path d="M13 8l-3.4 6 2.4-1.4 1.6 1.9 1.6-1.7 2.4 1.2z" fill="#fff"/></svg>
+        <h1>Ferienhaus Gibeli</h1>
+        <p>Belegverwaltung · <span style="white-space:nowrap">Achseten 1285&nbsp;m&nbsp;ü.&nbsp;M.</span></p>
+        <p class="login-verein">TV Lorraine-Breitenrain Bern</p>
       </div>
 
       <form id="loginForm" novalidate>
@@ -25,13 +31,13 @@
           <input type="date" id="geburtsdatum" class="input-field">
         </div>
 
-        <div class="error-msg hidden" id="errorMsg"></div>
+        <div class="error-msg hidden" id="errorMsg" role="alert"></div>
 
         <button type="button" class="btn-login" id="btnLogin">Anmelden</button>
       </form>
 
       <div class="admin-link">
-        <a href="admin.html" class="btn-admin">⚙ Admin-Bereich</a>
+        <a href="admin.html" class="btn-admin">Admin-Bereich</a>
       </div>
     </div>
   </div>

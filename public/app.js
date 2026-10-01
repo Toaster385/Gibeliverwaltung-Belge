@@ -22,8 +22,8 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       var user = JSON.parse(xhr.responseText);
       currentUser = user;
-      document.getElementById('headerUser').textContent = '👤 ' + user.benutzername;
-      document.getElementById('sidebarUser').textContent = '👤 ' + user.benutzername;
+      document.getElementById('headerUser').textContent = user.benutzername;
+      document.getElementById('sidebarUser').textContent = user.benutzername;
     } catch(e) { window.location.href = '/login.html'; return; }
     ladeEinstellungen();
     ladeWechselkurs();
@@ -431,26 +431,22 @@ function kartHTML(b) {
   var istBild = hatDatei && /\.(jpg|jpeg|png|gif|webp)$/i.test(b.dateiname || '');
   var istPdf = hatDatei && /\.pdf$/i.test(b.dateiname || '');
 
+  // Vorschaubild nur, wenn tatsächlich ein Foto hochgeladen wurde
   var thumbHTML = '';
   if (istBild) {
-    thumbHTML = '<div class="card-thumb" data-action="preview" data-id="' + b.id + '">' +
-      '<img src="/uploads/' + b.dateipfad + '" alt="Beleg" loading="lazy">' +
-      '<div class="thumb-overlay">Vergrössern</div></div>';
-  } else if (istPdf) {
-    thumbHTML = '<div class="card-thumb" data-action="preview" data-id="' + b.id + '">' +
-      '<div class="thumb-placeholder">📄</div><div class="thumb-overlay">PDF anzeigen</div></div>';
-  } else if (hatDatei) {
-    thumbHTML = '<div class="card-thumb" data-action="preview" data-id="' + b.id + '">' +
-      '<div class="thumb-placeholder">📎</div><div class="thumb-overlay">Datei anzeigen</div></div>';
-  } else {
-    thumbHTML = '<div class="card-thumb" style="cursor:default;">' +
-      '<div class="thumb-placeholder">🧾</div></div>';
+    thumbHTML = '<button type="button" class="card-thumb" data-action="preview" data-id="' + b.id + '" aria-label="Beleg vergrössern">' +
+      '<img src="/uploads/' + b.dateipfad + '" alt="Beleg-Foto" loading="lazy">' +
+      '<div class="thumb-overlay">Vergrössern</div></button>';
   }
 
   var istEingetragen = b.status === 'eingetragen';
   var waehrung = b.waehrung || 'EUR';
 
-  return '<div class="beleg-card">' +
+  var ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';
+  var ICON_VIEW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var ICON_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+
+  return '<div class="beleg-card is-' + (b.status || 'ausstehend') + '">' +
     thumbHTML +
     '<div class="card-body">' +
       '<div class="card-top">' +
@@ -461,14 +457,14 @@ function kartHTML(b) {
         '<span class="card-date">' + formatDatum(b.datum) + '</span>' +
         (b.belegnummer ? '<span class="card-nr">Nr. …' + escapeHtml(b.belegnummer) + '</span>' : '') +
         '<span class="badge status-' + (b.status || 'ausstehend') + '">' +
-          (istEingetragen ? '✓ Eingetragen' : '⏳ Ausstehend') + '</span>' +
+          (istEingetragen ? '✓ Eingetragen' : 'Ausstehend') + '</span>' +
       '</div>' +
       (b.notiz ? '<div class="card-note">' + escapeHtml(b.notiz) + '</div>' : '') +
     '</div>' +
     '<div class="card-actions">' +
-      (!istEingetragen ? '<button class="btn-icon" data-action="edit" data-id="' + b.id + '">&#9998; Bearbeiten</button>' : '') +
-      (hatDatei ? '<button class="btn-icon" data-action="preview" data-id="' + b.id + '">&#128065; Ansehen</button>' : '') +
-      (!istEingetragen ? '<button class="btn-icon danger" data-action="delete" data-id="' + b.id + '">&#128465; Löschen</button>' : '') +
+      (!istEingetragen ? '<button class="btn-icon" data-action="edit" data-id="' + b.id + '">' + ICON_EDIT + ' Bearbeiten</button>' : '') +
+      (hatDatei ? '<button class="btn-icon" data-action="preview" data-id="' + b.id + '">' + ICON_VIEW + ' Ansehen</button>' : '') +
+      (!istEingetragen ? '<button class="btn-icon danger" data-action="delete" data-id="' + b.id + '">' + ICON_DEL + ' Löschen</button>' : '') +
     '</div>' +
   '</div>';
 }
@@ -689,7 +685,7 @@ function zeigeBelegungTabelle(data, hatRechte) {
   if (!data.vorhanden) {
     content.innerHTML =
       '<div style="text-align:center;padding:40px 20px;">' +
-        '<div style="font-size:48px;opacity:.4;margin-bottom:12px;">📋</div>' +
+        '<svg viewBox="0 0 120 72" width="96" height="58" aria-hidden="true" style="margin-bottom:12px;"><path d="M0 72L30 24l14 18 16-30 22 36 10-12 28 36z" fill="#6FA3BF"/><path d="M60 12L50 30l6-3 4 5 5-4 6 3z" fill="#fff"/><path d="M0 72L22 44l12 14 14-20 18 34z" fill="#2F4A3A"/></svg>' +
         '<p style="color:var(--text-muted);">Noch keine Belegung hochgeladen.</p>' +
         (hatRechte ? '<p style="color:var(--text-muted);font-size:13px;margin-top:6px;">Lade eine Excel-Datei unten hoch.</p>' : '') +
       '</div>';
@@ -706,7 +702,7 @@ function zeigeBelegungTabelle(data, hatRechte) {
 
   content.innerHTML =
     '<div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
-      '<strong>📄 ' + escapeHtml(data.dateiname) + '</strong>' +
+      '<strong>' + escapeHtml(data.dateiname) + '</strong>' +
       (hochgeladenAm ? '<span style="color:var(--text-muted);font-size:12px;">Hochgeladen: ' + hochgeladenAm + '</span>' : '') +
     '</div>' +
     '<div id="belegungTabelle">' +
@@ -769,7 +765,7 @@ function hochladenBelegung() {
   msg.style.display = 'none';
   if (!input.files || !input.files[0]) {
     msg.textContent = 'Bitte eine Excel-Datei auswählen.';
-    msg.style.color = '#991b1b';
+    msg.style.color = 'var(--rot-dunkel)';
     msg.style.display = 'block';
     return;
   }
@@ -788,19 +784,19 @@ function hochladenBelegung() {
       var data = JSON.parse(xhr.responseText);
       if (xhr.status !== 200) {
         msg.textContent = data.error || 'Fehler beim Hochladen.';
-        msg.style.color = '#991b1b';
+        msg.style.color = 'var(--rot-dunkel)';
         msg.style.display = 'block';
         return;
       }
       input.value = '';
       msg.textContent = '✓ Datei erfolgreich hochgeladen!';
-      msg.style.color = '#065f46';
+      msg.style.color = 'var(--tanne)';
       msg.style.display = 'block';
       setTimeout(function() { msg.style.display = 'none'; }, 3000);
       ladeBelegungInfo();
     } catch(e) {
       msg.textContent = 'Unerwarteter Fehler.';
-      msg.style.color = '#991b1b';
+      msg.style.color = 'var(--rot-dunkel)';
       msg.style.display = 'block';
     }
   };
