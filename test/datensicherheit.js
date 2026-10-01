@@ -86,7 +86,15 @@ async function api(port, cookie, method, url, body, form) {
     b.close();
   }
 
-  c = (await api(3912, '', 'POST', '/api/login', { benutzername: 'Lio', passwort: '2202' })).cookie;
+  const login1 = await api(3912, '', 'POST', '/api/login', { benutzername: 'Lio', passwort: '2202' });
+  c = login1.cookie;
+  ok(login1.json && login1.json.passwortAendern === true, 'Admin mit altem Standardpasswort muss das Passwort ändern');
+  const gesperrt = await api(3912, c, 'GET', '/api/admin/belege');
+  ok(gesperrt.status === 403 && gesperrt.json.passwortAendern, 'Bis zum Passwortwechsel sind keine Daten abrufbar');
+  const schwach = await api(3912, c, 'PUT', '/api/admin/profil', { passwortAktuell: '2202', passwortNeu: '1111' });
+  ok(schwach.status === 400, 'Schwaches neues Passwort wird abgelehnt');
+  const wechsel = await api(3912, c, 'PUT', '/api/admin/profil', { passwortAktuell: '2202', passwortNeu: 'Neues-Passwort-42' });
+  ok(wechsel.status === 200, 'Passwortwechsel funktioniert');
   const liste = await api(3912, c, 'GET', '/api/admin/belege');
   ok(liste.status === 200 && liste.json.length === belegeVorher.length, 'Admin sieht alle Belege über die App');
   const datei = await api(3912, c, 'GET', '/uploads/' + belegeVorher[0].dateipfad);
@@ -94,6 +102,8 @@ async function api(port, cookie, method, url, body, form) {
   const integ = await api(3912, c, 'GET', '/api/admin/integritaet');
   ok(integ.json && integ.json.datenbankOk && integ.json.fehlendeDateien.length === 0, 'Integritätsprüfung: Datenbank ok, keine fehlenden Dateien');
   const zip = await api(3912, c, 'GET', '/api/admin/backup/download');
+  const bel0 = (await api(3912, c, 'GET', '/api/admin/belege')).json;
+  ok(bel0.every(b => b.verifiziert === 0 && b.auto_datum === 0), 'Alte Belege gelten als manuell erfasst (keine falschen Markierungen)');
   const zbuf = zip.buf;
   ok(zip.status === 200 && zbuf.slice(0, 2).toString() === 'PK' && zbuf.length > 500, `ZIP-Export funktioniert (${zbuf.length} Bytes)`);
   // ZIP-Inhalt prüfen (Einträge im Central Directory)

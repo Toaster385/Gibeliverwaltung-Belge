@@ -105,6 +105,23 @@ function extractBetrag(text) {
   return null;
 }
 
+// Geschäftsname: meist die erste Textzeile (Logo/Name) ohne Ziffern
+const GESCHAEFT_AUS = /^(kassenbon|kassenzettel|rechnung|quittung|beleg|bon\b|datum|total|summe|tel|fax|www|uid|mwst|danke|vielen|willkommen|herzlich|kasse|filiale|ihr einkauf|customer|receipt|invoice)/i;
+const ADRESSE = /(strasse|str\.|weg\b|platz|gasse|allee|postfach|bahnhof)/i;
+
+function extractGeschaeft(text) {
+  const zeilen = text.split(/\r?\n/).map(z => z.replace(/[|_~=*#]+/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 7);
+  for (const z of zeilen) {
+    if (z.length < 3 || z.length > 40 || /\d/.test(z) || GESCHAEFT_AUS.test(z) || ADRESSE.test(z)) continue;
+    const buchstaben = (z.match(/\p{L}/gu) || []).length;
+    if (buchstaben < 3 || buchstaben / z.length < 0.75) continue;
+    // GROSSBUCHSTABEN -> Normale Schreibweise ("LANDI FRUTIGEN" -> "Landi Frutigen")
+    if (z === z.toUpperCase()) return z.toLowerCase().replace(/(^|[\s\-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
+    return z;
+  }
+  return null;
+}
+
 // ---------- OCR ----------
 let workerPromise = null;
 let warteschlange = Promise.resolve();
@@ -149,16 +166,17 @@ function lies(dateipfad, psm) {
 
 async function scanneBeleg(dateipfad) {
   let text = await lies(dateipfad, 3); // automatische Seitenanalyse
-  let datum = extractDatum(text), belegnummer = extractBelegnummer(text), summe = extractBetrag(text);
+  let datum = extractDatum(text), belegnummer = extractBelegnummer(text), summe = extractBetrag(text), geschaeft = extractGeschaeft(text);
   if (!datum || !belegnummer || !summe) {
     // Zweiter Versuch: Beleg als einheitlicher Textblock lesen (hilft bei schmalen Kassenzetteln)
     const text2 = await lies(dateipfad, 6);
     datum = datum || extractDatum(text2);
     belegnummer = belegnummer || extractBelegnummer(text2);
     summe = summe || extractBetrag(text2);
+    geschaeft = geschaeft || extractGeschaeft(text2);
     text = text + '\n--- 2. Durchgang ---\n' + text2;
   }
-  return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, text };
+  return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, geschaeft, text };
 }
 
-module.exports = { scanneBeleg, extractDatum, extractBelegnummer, extractBetrag };
+module.exports = { scanneBeleg, extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft };

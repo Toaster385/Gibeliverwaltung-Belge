@@ -17,6 +17,7 @@
     "express": "^4.18.2",
     "express-session": "^1.19.0",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.0.13",
     "tesseract.js": "^7.0.0"
   }
 }
