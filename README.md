@@ -71,7 +71,7 @@ Passwörter nach dem ersten Login ändern, bevor andere im WLAN zugreifen.
 ## Beleg fotografieren & automatisch erkennen
 
 - **Beleg fotografieren** öffnet auf dem Handy direkt die Kamera. Das Foto wird sofort im Browser verkleinert
-  (max. 2000 px, JPEG) – ein Foto von mehreren MB wird so zu ca. 100–400 KB und lädt auch bei langsamem Internet schnell hoch.
+  (max. 2400 px, JPEG) – ein Foto von mehreren MB wird so zu ca. 100–400 KB und lädt auch bei langsamem Internet schnell hoch.
 - Der Server liest per OCR (`tesseract.js`, läuft lokal, kein externer Dienst, Sprachdaten liegen im Paket) **Datum** und
   **Belegnummer** (letzte 3 Ziffern) aus dem Foto und trägt sie ein.
 - Das Foto wird nur **einmal** hochgeladen; beim Speichern wird nur noch ein Kürzel gesendet.

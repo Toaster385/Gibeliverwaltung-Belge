@@ -623,12 +623,30 @@ function setzeScanZurueck() {
   scanState = { token: null, datum: null, belegnummer: null, laufend: false };
   var st = document.getElementById('scanStatus');
   if (st) { st.className = 'scan-status hidden'; st.textContent = ''; }
+  zeigeScanDetails('');
   ['hintDatum', 'hintBelegnummer'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
   var btn = document.getElementById('btnSpeichern');
   if (btn) btn.disabled = false;
+}
+
+// Technische Details (erkannter Text / Fehler) zum Nachvollziehen, falls das Lesen nicht klappt
+function zeigeScanDetails(text) {
+  var st = document.getElementById('scanStatus');
+  var alt = document.getElementById('scanDetails');
+  if (alt) alt.remove();
+  if (!text) return;
+  var d = document.createElement('details');
+  d.id = 'scanDetails';
+  var sum = document.createElement('summary');
+  sum.textContent = 'Was wurde erkannt?';
+  var pre = document.createElement('pre');
+  pre.textContent = text;
+  d.appendChild(sum);
+  d.appendChild(pre);
+  st.insertAdjacentElement('afterend', d);
 }
 
 function zeigeScanStatus(art, text) {
@@ -686,7 +704,7 @@ function verarbeiteDatei(file) {
     zeigeVorschau(klein);
     zeigeToast('Foto verkleinert: ' + Math.round(klein.size / 1024) + ' KB', '');
     scanneBild(klein);
-  }, { immer: true, maxDim: 2000, qualitaet: 0.72 });
+  }, { immer: true, maxDim: 2400, qualitaet: 0.7 });
 }
 
 function scanneBild(file) {
@@ -698,13 +716,14 @@ function scanneBild(file) {
   xhr.open('POST', '/api/belege/scan', true);
   xhr.timeout = 120000;
   function fertig() { scanState.laufend = false; btn.disabled = false; }
-  function manuell() {
+  function manuell(grund) {
     fertig();
     zeigeScanStatus('warn', 'Das Foto konnte nicht automatisch gelesen werden. Bitte Datum und Belegnummer von Hand eintragen (nicht verifiziert).');
+    zeigeScanDetails('Technischer Grund: ' + grund);
   }
   xhr.onreadystatechange = function() {
     if (xhr.readyState !== 4) return;
-    if (xhr.status !== 200) { manuell(); return; }
+    if (xhr.status !== 200) { manuell('Server-Antwort ' + xhr.status + ' ' + (xhr.responseText || '').slice(0, 200)); return; }
     try {
       var data = JSON.parse(xhr.responseText);
       scanState.token = data.scanToken;
@@ -714,13 +733,15 @@ function scanneBild(file) {
       if (data.belegnummer) document.getElementById('feldBelegnummer').value = data.belegnummer;
       fertig();
       if (data.lesefehler) {
-        zeigeScanStatus('warn', 'Das Foto wurde gespeichert, aber nicht gelesen. Bitte Datum und Belegnummer von Hand eintragen (nicht verifiziert).');
+        zeigeScanStatus('warn', 'Das Foto wurde gespeichert, aber nicht gelesen (' + data.lesefehler + '). Bitte Datum und Belegnummer von Hand eintragen (nicht verifiziert).');
       } else {
         aktualisiereScanHinweise();
       }
-    } catch (e) { manuell(); }
+      if (!data.datum || !data.belegnummer) zeigeScanDetails(data.text || '(kein Text erkannt)');
+    } catch (e) { manuell('Antwort nicht lesbar: ' + e.message); }
   };
-  xhr.ontimeout = manuell;
+  xhr.ontimeout = function() { manuell('Zeitüberschreitung (120 s)'); };
+  xhr.onerror = function() { manuell('Netzwerkfehler / Server nicht erreichbar'); };
   xhr.send(fd);
 }
 

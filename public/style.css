@@ -476,3 +476,7 @@ form { padding: 20px; }
 .field-hint { font-size: 13px; color: var(--tanne); font-weight: 600; }
 .verif-ja { background: var(--blau-hell); color: #1F4E66; }
 .verif-nein { background: #EEEBE4; color: var(--text-muted); }
+
+#scanDetails { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+#scanDetails summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+#scanDetails pre { white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; margin-top: 6px; font-size: 12px; }

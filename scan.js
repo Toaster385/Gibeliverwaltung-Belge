@@ -5,7 +5,15 @@ const path = require('path');
 // ---------- Textauswertung (rein, ohne OCR – gut testbar) ----------
 const pad = n => String(n).padStart(2, '0');
 
+// OCR verwechselt in Zahlen oft O/o mit 0 und l/I/| mit 1
+function normalisiereZiffern(text) {
+  return text
+    .replace(/(?<=\d)[Oo](?=[\d.,\/-])|(?<=[\d.,\/-])[Oo](?=\d)/g, '0')
+    .replace(/(?<=\d)[lI|](?=[\d.,\/-])|(?<=[\d.,\/-])[lI|](?=\d)/g, '1');
+}
+
 function extractDatum(text, heute = new Date()) {
+  text = normalisiereZiffern(text);
   const kandidaten = [];
   const re = /(?<!\d)(\d{1,2})\s?[.,\/-]\s?(\d{1,2})\s?[.,\/-]\s?(\d{4}|\d{2})(?!\d)|(?<!\d)(20\d{2})-(\d{2})-(\d{2})(?!\d)/g;
   let m;
@@ -36,6 +44,7 @@ function ziffernDerZeile(teil) {
 }
 
 function extractBelegnummer(text) {
+  text = normalisiereZiffern(text);
   const zeilen = text.split(/\r?\n/);
   let schwach = null;
   for (const zeile of zeilen) {
@@ -77,7 +86,7 @@ function getWorker() {
   return workerPromise;
 }
 
-function lies(dateipfad) {
+function lies(dateipfad, psm) {
   if (wartende >= MAX_WARTENDE) return Promise.reject(new Error('ausgelastet'));
   wartende++;
   const job = warteschlange.then(async () => {
@@ -85,6 +94,7 @@ function lies(dateipfad) {
     let timer;
     const timeout = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('timeout')), TIMEOUT_MS); });
     try {
+      await worker.setParameters({ tessedit_pageseg_mode: String(psm || 3) });
       const res = await Promise.race([worker.recognize(dateipfad), timeout]);
       return res.data.text || '';
     } catch (e) {
@@ -99,8 +109,16 @@ function lies(dateipfad) {
 }
 
 async function scanneBeleg(dateipfad) {
-  const text = await lies(dateipfad);
-  return { datum: extractDatum(text), belegnummer: extractBelegnummer(text), textLaenge: text.length };
+  let text = await lies(dateipfad, 3); // automatische Seitenanalyse
+  let datum = extractDatum(text), belegnummer = extractBelegnummer(text);
+  if (!datum || !belegnummer) {
+    // Zweiter Versuch: Beleg als einheitlicher Textblock lesen (hilft bei schmalen Kassenzetteln)
+    const text2 = await lies(dateipfad, 6);
+    datum = datum || extractDatum(text2);
+    belegnummer = belegnummer || extractBelegnummer(text2);
+    text = text + '\n--- 2. Durchgang ---\n' + text2;
+  }
+  return { datum, belegnummer, text };
 }
 
 module.exports = { scanneBeleg, extractDatum, extractBelegnummer };

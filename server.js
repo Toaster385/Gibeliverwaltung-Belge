@@ -561,18 +561,21 @@ app.post('/api/belege/scan', requireLogin, scanUpload.single('datei'), async (re
   if (!req.file) return res.status(400).json({ error: 'Kein Foto hochgeladen' });
   const token = crypto.randomBytes(16).toString('hex');
   let erkannt = { datum: null, belegnummer: null };
-  let lesefehler = null;
+  let lesefehler = null, text = '';
   try {
     erkannt = await scanneBeleg(req.file.path);
+    text = erkannt.text || '';
+    console.log(`Scan: ${req.file.size} Bytes, ${text.length} Zeichen, Datum=${erkannt.datum}, Nr=${erkannt.belegnummer}`);
   } catch (e) {
     lesefehler = e.message === 'ausgelastet' ? 'ausgelastet' : 'fehlgeschlagen';
-    console.error('Scan-Fehler:', e.message);
+    text = 'Fehler: ' + e.message;
+    console.error('Scan-Fehler:', e);
   }
   scans.set(token, {
     userId: req.session.benutzer.id, pfad: req.file.path, originalname: req.file.originalname,
     datum: erkannt.datum, belegnummer: erkannt.belegnummer, ablauf: Date.now() + SCAN_TTL
   });
-  res.json({ scanToken: token, datum: erkannt.datum, belegnummer: erkannt.belegnummer, lesefehler });
+  res.json({ scanToken: token, datum: erkannt.datum, belegnummer: erkannt.belegnummer, lesefehler, text: text.slice(0, 1500) });
 });
 
 // Gibt den zwischengespeicherten Scan frei und verschiebt die Datei in den Upload-Ordner.
