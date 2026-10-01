@@ -79,3 +79,16 @@ Passwörter nach dem ersten Login ändern, bevor andere im WLAN zugreifen.
   Wer etwas von Hand tippt/ändert, PDFs hochlädt oder wenn nichts erkannt wird, bekommt den Status **Manuell**.
 - Die Erkennung hängt von der Fotoqualität ab (flach, scharf, gut beleuchtet, ganzer Beleg im Bild). Bei Misserfolg bleibt
   die Handeingabe möglich. Der erste Scan nach einem Serverstart dauert etwas länger (OCR-Engine wird geladen).
+
+## Rollen und Tabellen (Aktuelle Belegung / Gerichte)
+
+| Rolle | Darf |
+| --- | --- |
+| `gibeli-gast` | Eigene Belege verwalten, Belegung und Gerichte ansehen |
+| `verwaltung` | Alle Belege einsehen/Status ändern, Belegung hochladen/ersetzen/löschen |
+| `gerichte` | Gerichte-Tabelle (Excel) hochladen/ersetzen/löschen |
+| `admin` | Alles |
+
+Die Gerichte-Tabelle funktioniert wie die Belegung: alle Angemeldeten sehen sie über das Menü (⋮ → Gerichte),
+die Rolle `gerichte` (und Admins) können die Excel-Datei (.xlsx, .xls, .ods) hochladen. Rollen werden in der
+Benutzerverwaltung im Admin-Bereich vergeben; ein Benutzer kann mehrere Rollen haben.

@@ -16,10 +16,12 @@ app.set('trust proxy', 1);
 const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 const belegungDir = path.join(dataDir, 'belegung');
+const gerichteDir = path.join(dataDir, 'gerichte');
 const scanTmpDir = path.join(uploadsDir, '.scan-tmp'); // Punkt-Ordner: wird von express.static nicht ausgeliefert
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(belegungDir)) fs.mkdirSync(belegungDir, { recursive: true });
+if (!fs.existsSync(gerichteDir)) fs.mkdirSync(gerichteDir, { recursive: true });
 if (!fs.existsSync(scanTmpDir)) fs.mkdirSync(scanTmpDir, { recursive: true });
 
 // ===== Database =====
@@ -92,7 +94,7 @@ for (const [k, v] of Object.entries(defaultSettings)) {
 }
 
 // Migrate old role names
-db.prepare(`UPDATE benutzer SET rolle = 'gibeli-gast' WHERE rolle NOT IN ('admin', 'gibeli-gast', 'verwaltung') AND instr(rolle, ',') = 0`).run();
+db.prepare(`UPDATE benutzer SET rolle = 'gibeli-gast' WHERE rolle NOT IN ('admin', 'gibeli-gast', 'verwaltung', 'gerichte') AND instr(rolle, ',') = 0`).run();
 
 // Ensure admin "Lio" exists
 if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Lio'").get()) {
@@ -114,6 +116,7 @@ if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Admin3'").get()) 
 }
 
 // ===== Helpers =====
+const ALLE_ROLLEN = ['admin', 'gibeli-gast', 'verwaltung', 'gerichte'];
 function getRollen(user) {
   return (user.rolle || '').split(',').map(r => r.trim()).filter(Boolean);
 }
@@ -180,6 +183,12 @@ function requireLogin(req, res, next) {
 function requireAdmin(req, res, next) {
   if (req.session?.benutzer && hatRolle(req.session.benutzer, 'admin')) return next();
   res.status(403).json({ error: 'Kein Admin-Zugriff' });
+}
+
+// Rolle "gerichte": darf die Gerichte-Tabelle hochladen/ersetzen/löschen (Admins ebenfalls)
+function requireGerichte(req, res, next) {
+  if (req.session?.benutzer && hatRolle(req.session.benutzer, 'admin', 'gerichte')) return next();
+  res.status(403).json({ error: 'Kein Zugriff' });
 }
 
 function requireVerwaltung(req, res, next) {
@@ -277,7 +286,7 @@ app.post('/api/admin/benutzer', requireAdmin, (req, res) => {
   if (existing) return res.status(400).json({ error: 'Benutzername bereits vergeben' });
 
   const rolleStr = Array.isArray(rollen) && rollen.length > 0
-    ? rollen.filter(r => ['admin','gibeli-gast','verwaltung'].includes(r)).join(',')
+    ? rollen.filter(r => ALLE_ROLLEN.includes(r)).join(',')
     : 'gibeli-gast';
 
   const result = db.prepare(
@@ -305,7 +314,7 @@ app.put('/api/admin/benutzer/:id/rollen', requireAdmin, (req, res) => {
   if (!Array.isArray(rollen) || rollen.length === 0)
     return res.status(400).json({ error: 'Mindestens eine Rolle erforderlich' });
 
-  const valid = ['admin', 'gibeli-gast', 'verwaltung'];
+  const valid = ALLE_ROLLEN;
   const filtered = rollen.filter(r => valid.includes(r));
   if (filtered.length === 0) return res.status(400).json({ error: 'Ungültige Rollen' });
 
@@ -462,67 +471,78 @@ const upload = multer({
   }
 });
 
-// ===== MULTER: BELEGUNG (Excel) =====
-const belegungStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, belegungDir),
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, unique + path.extname(file.originalname));
-  }
-});
-const uploadBelegung = multer({
-  storage: belegungStorage,
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (['.xlsx', '.xls', '.ods'].includes(ext)) return cb(null, true);
-    cb(new Error('Nur Excel-Dateien (.xlsx, .xls, .ods) erlaubt'));
-  }
-});
+// ===== EXCEL-BEREICHE (Aktuelle Belegung, Gerichte) =====
+// Beide Bereiche funktionieren identisch: alle Angemeldeten dürfen die Tabelle ansehen,
+// hochladen/ersetzen/löschen darf nur, wer die jeweilige Schreib-Middleware besteht.
+function registriereExcelBereich({ url, dir, praefix, standardName, schreibRecht }) {
+  const setting = key => db.prepare(`SELECT wert FROM einstellungen WHERE schluessel = ?`).get(`${praefix}_${key}`);
+  const speichere = (key, wert) => db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES (?, ?)`).run(`${praefix}_${key}`, wert);
 
-// ===== BELEGUNG ROUTES =====
-app.get('/api/belegung/datei', requireLogin, (req, res) => {
-  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
-  if (!dateipfad?.wert) return res.status(404).json({ error: 'Keine Datei vorhanden' });
-  const filePath = path.join(belegungDir, dateipfad.wert);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
-  res.sendFile(filePath);
-});
+  const upload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, dir),
+      filename: (req, file, cb) => {
+        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        cb(null, unique + path.extname(file.originalname));
+      }
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (['.xlsx', '.xls', '.ods'].includes(ext)) return cb(null, true);
+      cb(new Error('Nur Excel-Dateien (.xlsx, .xls, .ods) erlaubt'));
+    }
+  });
 
-app.get('/api/belegung', requireLogin, (req, res) => {
-  const dateiname = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateiname'`).get();
-  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
-  const hochgeladen = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_hochgeladen_am'`).get();
-  if (!dateipfad?.wert) return res.json({ vorhanden: false });
-  const filePath = path.join(belegungDir, dateipfad.wert);
-  if (!fs.existsSync(filePath)) return res.json({ vorhanden: false });
-  res.json({ vorhanden: true, dateiname: dateiname?.wert || 'belegung.xlsx', hochgeladen_am: hochgeladen?.wert || '' });
-});
-
-app.post('/api/belegung', requireVerwaltung, uploadBelegung.single('datei'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' });
-  const oldPath = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
-  if (oldPath?.wert) {
-    const old = path.join(belegungDir, oldPath.wert);
-    if (fs.existsSync(old)) try { fs.unlinkSync(old); } catch(e) {}
+  for (const k of ['dateiname', 'dateipfad', 'hochgeladen_am']) {
+    db.prepare(`INSERT OR IGNORE INTO einstellungen (schluessel, wert) VALUES (?, '')`).run(`${praefix}_${k}`);
   }
-  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateiname', ?)`).run(req.file.originalname);
-  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateipfad', ?)`).run(req.file.filename);
-  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_hochgeladen_am', ?)`).run(new Date().toISOString());
-  res.json({ success: true, dateiname: req.file.originalname });
-});
 
-app.delete('/api/belegung', requireVerwaltung, (req, res) => {
-  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
-  if (dateipfad?.wert) {
-    const filePath = path.join(belegungDir, dateipfad.wert);
-    if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch(e) {}
-  }
-  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateiname', '')`).run();
-  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateipfad', '')`).run();
-  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_hochgeladen_am', '')`).run();
-  res.json({ success: true });
-});
+  app.get(`${url}/datei`, requireLogin, (req, res) => {
+    const dateipfad = setting('dateipfad');
+    if (!dateipfad?.wert) return res.status(404).json({ error: 'Keine Datei vorhanden' });
+    const filePath = path.join(dir, dateipfad.wert);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
+    res.sendFile(filePath);
+  });
+
+  app.get(url, requireLogin, (req, res) => {
+    const dateiname = setting('dateiname');
+    const dateipfad = setting('dateipfad');
+    const hochgeladen = setting('hochgeladen_am');
+    if (!dateipfad?.wert) return res.json({ vorhanden: false });
+    if (!fs.existsSync(path.join(dir, dateipfad.wert))) return res.json({ vorhanden: false });
+    res.json({ vorhanden: true, dateiname: dateiname?.wert || standardName, hochgeladen_am: hochgeladen?.wert || '' });
+  });
+
+  app.post(url, schreibRecht, upload.single('datei'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' });
+    const alt = setting('dateipfad');
+    if (alt?.wert) {
+      const old = path.join(dir, alt.wert);
+      if (fs.existsSync(old)) try { fs.unlinkSync(old); } catch(e) {}
+    }
+    speichere('dateiname', req.file.originalname);
+    speichere('dateipfad', req.file.filename);
+    speichere('hochgeladen_am', new Date().toISOString());
+    res.json({ success: true, dateiname: req.file.originalname });
+  });
+
+  app.delete(url, schreibRecht, (req, res) => {
+    const dateipfad = setting('dateipfad');
+    if (dateipfad?.wert) {
+      const filePath = path.join(dir, dateipfad.wert);
+      if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch(e) {}
+    }
+    speichere('dateiname', '');
+    speichere('dateipfad', '');
+    speichere('hochgeladen_am', '');
+    res.json({ success: true });
+  });
+}
+
+registriereExcelBereich({ url: '/api/belegung', dir: belegungDir, praefix: 'belegung', standardName: 'belegung.xlsx', schreibRecht: requireVerwaltung });
+registriereExcelBereich({ url: '/api/gerichte', dir: gerichteDir, praefix: 'gerichte', standardName: 'gerichte.xlsx', schreibRecht: requireGerichte });
 
 // ===== BELEG-SCAN (OCR) =====
 // Das Foto wird einmal hochgeladen (clientseitig bereits komprimiert), serverseitig gelesen und kurz
