@@ -89,7 +89,7 @@ Erkannt werden:
 1. das **Zimmer-Raster** (links Datum, rechts die Zimmer, darüber die Kapazität, darunter die Gäste): Steht ein Name an mehreren Tagen hintereinander, ist das ein Aufenthalt. `Name` = 1 Person, `Name 4` = 4 Personen, `Anna & Ben` = 2 Personen, `X Ab / Y An` bzw. `X / Y` = Wechsel am selben Tag, `Name 4` über mehrere Massenlager-Plätze = ein Aufenthalt (nicht mehrfach gezählt).
 2. eine **einfache Liste** mit den Spalten Anreise/Abreise (oder Von/Bis), Name, Personen, Zimmer.
 
-Die Liste lässt sich auch direkt in der App pflegen (**+ Eintrag**, **Bearbeiten**, **Löschen**); alle Änderungen stehen im Protokoll.
+Die Liste lässt sich auch direkt in der App pflegen (**+ Eintrag**, **Bearbeiten**, **Löschen**). **Jahr leeren** löscht alle Einträge des gewählten Jahres auf einmal (mit Rückfrage; der Stand wird vorher gesichert und lässt sich unter „Frühere Stände“ zurückholen). Alle Änderungen stehen im Protokoll.
 
 **Karte „Im Gibeli“** (oben auf der Startseite und im Admin-Bereich): **wie viele Personen zurzeit im Haus sind**, **nächste Abreise** und **nächste Anreise** (aus der Liste, ohne dass Excel geladen werden muss).
 

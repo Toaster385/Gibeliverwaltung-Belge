@@ -294,7 +294,8 @@
           jahrListe.map(function(y) { return '<option value="' + y + '"' + (y === jahr ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select></label>' : '') +
         '<input type="search" class="input-field bl-suche" placeholder="Name oder Zimmer suchen …" aria-label="Suchen" value="' + esc(zustand.suche) + '">' +
         (schreiben ? '<div class="bl-aktionen"><button type="button" class="xl-btn xl-btn-primary" data-a="neu">+ Eintrag</button>' +
-          '<label class="xl-btn bl-datei" title="Excel-Belegung einlesen">Excel einlesen<input type="file" class="sr-file" accept=".xlsx,.xls,.ods"></label></div>' : '') +
+          '<label class="xl-btn bl-datei" title="Excel-Belegung einlesen">Excel einlesen<input type="file" class="sr-file" accept=".xlsx,.xls,.ods"></label>' +
+          (jahrListe.length ? '<button type="button" class="xl-btn xl-btn-danger" data-a="jahrleeren">Jahr ' + jahr + ' leeren</button>' : '') + '</div>' : '') +
       '</div>';
       if (!sichtbar.length) {
         html += '<div class="bl-leer">' + BERG + '<p>' + (alle.length ? 'Keine Einträge in diesem Jahr.' : 'Noch keine Belegung eingetragen.') + '</p>' +
@@ -340,6 +341,18 @@
           api('POST', '/api/belegung/liste/staende/' + b.dataset.id + '/wiederherstellen', null, function(st, d) {
             if (st === 200) { ctx.toast('Liste wiederhergestellt', 'success'); geaendert(); renderListe(host, ctx); } else ctx.toast((d && d.error) || 'Fehler', 'error');
           });
+        });
+      });
+      var leeren = host.querySelector('[data-a=jahrleeren]');
+      if (leeren) leeren.addEventListener('click', function() {
+        var imJahr = alle.filter(function(e) { return e.von.slice(0, 4) <= String(jahr) && e.bis.slice(0, 4) >= String(jahr); });
+        var ueberJahr = imJahr.filter(function(e) { return e.von.slice(0, 4) !== e.bis.slice(0, 4); }).length;
+        if (!confirm('Wirklich ALLE ' + imJahr.length + ' Einträge des Jahres ' + jahr + ' löschen?' +
+          (ueberJahr ? '\n(' + ueberJahr + ' davon reichen über den Jahreswechsel und verschwinden dadurch auch im Nachbarjahr.)' : '') +
+          '\n\nDie bisherige Liste wird vorher gesichert und lässt sich unter „Frühere Stände“ wiederherstellen.')) return;
+        api('DELETE', '/api/belegung/liste/jahr/' + jahr, null, function(st, d) {
+          if (st === 200) { ctx.toast(d.anzahl + ' Einträge gelöscht', 'success'); zustand.jahr = null; geaendert(); renderListe(host, ctx); }
+          else ctx.toast((d && d.error) || 'Fehler beim Löschen', 'error');
         });
       });
       var datei = host.querySelector('.bl-datei input');

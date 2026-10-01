@@ -175,6 +175,16 @@ function beleg(felder, dateien = {}) {
   r = await api(vera, 'POST', `/api/belegung/liste/staende/${stand}/wiederherstellen`); ok(r.status === 200 && r.json.anzahl === 1, 'Früheren Stand wiederherstellen');
   r = await api(vera, 'GET', '/api/belegung/liste'); ok(r.json.eintraege.length === 1 && r.json.eintraege[0].name === 'Gruppe A' && r.json.eintraege[0].personen === 7, 'Wiederhergestellte Liste stimmt (inkl. Änderung)');
   r = await api(vera, 'DELETE', '/api/belegung/liste/' + r.json.eintraege[0].id); ok(r.status === 200, 'Eintrag löschen');
+  for (const e of [{ name: 'J1', von: '2026-03-01', bis: '2026-03-05' }, { name: 'J2', von: '2026-12-30', bis: '2027-01-02' }, { name: 'J3', von: '2027-06-01', bis: '2027-06-03' }]) await api(vera, 'POST', '/api/belegung/liste', e);
+  r = await api(anna, 'DELETE', '/api/belegung/liste/jahr/2026'); ok(r.status === 403, 'Gast darf kein Jahr leeren');
+  r = await api(vera, 'DELETE', '/api/belegung/liste/jahr/abc'); ok(r.status === 400, 'Ungültiges Jahr wird abgelehnt');
+  r = await api(vera, 'DELETE', '/api/belegung/liste/jahr/2026'); ok(r.status === 200 && r.json.anzahl === 2, 'Jahr 2026 leeren: 2 Einträge (inkl. Jahreswechsel-Aufenthalt)');
+  r = await api(vera, 'GET', '/api/belegung/liste'); ok(r.json.eintraege.length === 1 && r.json.eintraege[0].name === 'J3', 'Nur der Eintrag von 2027 bleibt');
+  ok(r.json.staende.some(x => /vor dem Leeren von 2026/.test(x.grund)), 'Vor dem Leeren wurde der Stand gesichert');
+  const vor = r.json.staende.find(x => /vor dem Leeren von 2026/.test(x.grund));
+  r = await api(vera, 'POST', `/api/belegung/liste/staende/${vor.id}/wiederherstellen`); r = await api(vera, 'GET', '/api/belegung/liste');
+  ok(r.json.eintraege.length === 3, 'Geleertes Jahr lässt sich über „Frühere Stände“ wiederherstellen');
+  await api(vera, 'DELETE', '/api/belegung/liste/jahr/2026'); await api(vera, 'DELETE', '/api/belegung/liste/jahr/2027');
 
   console.log('Export & Protokoll');
   r = await api(anna, 'GET', '/api/export/belege.csv'); ok(r.status === 403, 'Export nur für Verwaltung/Admin');
@@ -184,7 +194,7 @@ function beleg(felder, dateien = {}) {
   r = await api(vera, 'GET', '/api/admin/protokoll'); ok(r.status === 403, 'Protokoll nur für Admins');
   r = await api(admin, 'GET', '/api/admin/protokoll?limit=500');
   const akt = r.json.eintraege.map(e => e.aktion);
-  ok(['belegung_import', 'belegung_eintrag_neu', 'beleg_erstellt', 'beleg_geaendert', 'beleg_geloescht', 'beleg_wiederhergestellt', 'beleg_endgueltig_geloescht', 'benutzer_geloescht', 'export', 'login_gesperrt'].every(a => akt.includes(a)), 'Protokoll enthält alle wichtigen Aktionen: ' + [...new Set(akt)].join(', '));
+  ok(['belegung_import', 'belegung_jahr_geleert', 'belegung_eintrag_neu', 'beleg_erstellt', 'beleg_geaendert', 'beleg_geloescht', 'beleg_wiederhergestellt', 'beleg_endgueltig_geloescht', 'benutzer_geloescht', 'export', 'login_gesperrt'].every(a => akt.includes(a)), 'Protokoll enthält alle wichtigen Aktionen: ' + [...new Set(akt)].join(', '));
 
   console.log('Neustart: nichts geht verloren');
   srv.p.kill(); await new Promise(r => setTimeout(r, 600));

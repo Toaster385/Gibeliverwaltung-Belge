@@ -85,6 +85,21 @@ module.exports = function (app) {
     res.json({ success: true });
   });
 
+  // Alle Einträge eines Jahres auf einmal löschen (alles, was in der Jahresansicht erscheint, auch Aufenthalte über den Jahreswechsel).
+  // Der bisherige Stand wird vorher gesichert und lässt sich unter "Frühere Stände" zurückholen.
+  app.delete('/api/belegung/liste/jahr/:jahr', requireVerwaltung, (req, res) => {
+    if (!/^\d{4}$/.test(req.params.jahr)) return res.status(400).json({ error: 'Ungültiges Jahr' });
+    const jahr = req.params.jahr;
+    const betroffen = db.prepare('SELECT COUNT(*) AS n FROM belegung_eintraege WHERE substr(von, 1, 4) <= ? AND substr(bis, 1, 4) >= ?').get(jahr, jahr).n;
+    if (!betroffen) return res.json({ success: true, anzahl: 0 });
+    db.transaction(() => {
+      sichereStand(req.session.benutzer, `vor dem Leeren von ${jahr}`);
+      db.prepare('DELETE FROM belegung_eintraege WHERE substr(von, 1, 4) <= ? AND substr(bis, 1, 4) >= ?').run(jahr, jahr);
+    })();
+    protokolliere(req.session.benutzer, 'belegung_jahr_geleert', 'belegung', null, `Jahr ${jahr}: ${betroffen} Einträge gelöscht (Stand gesichert)`);
+    res.json({ success: true, anzahl: betroffen });
+  });
+
   // Ganze Liste ersetzen (Import aus Excel). Der bisherige Stand wird vorher gesichert.
   app.post('/api/belegung/liste/import', requireVerwaltung, (req, res) => {
     const eingabe = (req.body && req.body.eintraege) || [];
