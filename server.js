@@ -229,12 +229,18 @@ app.get('/api/wechselkurs', async (req, res) => {
   try {
     const https = require('https');
     const data = await new Promise((resolve, reject) => {
-      https.get('https://api.frankfurter.app/latest?from=EUR&to=CHF', r => {
+      const req = https.get('https://api.frankfurter.app/latest?from=EUR&to=CHF', r => {
         let body = '';
         r.on('data', d => body += d);
-        r.on('end', () => resolve(JSON.parse(body)));
-      }).on('error', reject);
+        r.on('end', () => {
+          try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+        });
+        r.on('error', reject);
+      });
+      req.on('error', reject);
+      req.setTimeout(5000, () => req.destroy(new Error('Timeout')));
     });
+    if (!data || !data.rates || !data.rates.CHF) throw new Error('Ungültige Antwort');
     res.json({ EUR_to_CHF: data.rates.CHF, CHF_to_EUR: +(1 / data.rates.CHF).toFixed(6) });
   } catch (e) {
     res.json({ EUR_to_CHF: 0.95, CHF_to_EUR: 1.053, fallback: true });
