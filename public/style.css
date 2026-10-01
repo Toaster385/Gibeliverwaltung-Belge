@@ -480,3 +480,6 @@ form { padding: 20px; }
 #scanDetails { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
 #scanDetails summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
 #scanDetails pre { white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; margin-top: 6px; font-size: 12px; }
+
+.card-auto { margin-top: 10px; font-size: 13px; font-weight: 600; color: #1F4E66; background: var(--blau-hell); border: 1px solid var(--blau); border-radius: 8px; padding: 4px 10px; display: inline-block; }
+.card-auto-manuell { color: var(--text-muted); background: #EEEBE4; border-color: var(--border); font-weight: 500; }

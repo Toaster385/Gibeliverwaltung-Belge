@@ -8,7 +8,7 @@ let kasseGeschlossen = false;
 let statsWaehrung = 'EUR';
 let currentUser = null;
 // Beleg-Scan: Foto wurde komprimiert, auf dem Server gelesen und wartet dort (scanToken)
-let scanState = { token: null, datum: null, belegnummer: null, laufend: false };
+let scanState = { token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, laufend: false };
 
 const filterSuche = document.getElementById('filterSuche');
 const filterVon = document.getElementById('filterVon');
@@ -181,6 +181,8 @@ function setupEventListeners() {
   });
   document.getElementById('feldDatum').addEventListener('input', aktualisiereScanHinweise);
   document.getElementById('feldBelegnummer').addEventListener('input', aktualisiereScanHinweise);
+  document.getElementById('feldBetrag').addEventListener('input', aktualisiereScanHinweise);
+  document.querySelectorAll('#formBeleg .waehrung-btn').forEach(function(b) { b.addEventListener('click', function() { setTimeout(aktualisiereScanHinweise, 0); }); });
 
   document.getElementById('btnRemoveFile').addEventListener('click', function(e) {
     e.stopPropagation();
@@ -450,6 +452,19 @@ function rendereGrid() {
   });
 }
 
+// Nur für Admin/Verwaltung: welche Werte wurden automatisch aus dem Foto gelesen?
+function autoInfoHTML(b) {
+  var rollen = ((currentUser && currentUser.rolle) || '').split(',').map(function(r) { return r.trim(); });
+  if (rollen.indexOf('admin') < 0 && rollen.indexOf('verwaltung') < 0) return '';
+  var felder = [];
+  if (b.auto_datum) felder.push('Datum');
+  if (b.auto_belegnummer) felder.push('Nr.');
+  if (b.auto_betrag) felder.push('Betrag');
+  if (b.auto_waehrung) felder.push('Währung');
+  if (!felder.length) return '<div class="card-auto card-auto-manuell">Alles von Hand eingetragen</div>';
+  return '<div class="card-auto">Automatisch gelesen: ' + felder.join(', ') + '</div>';
+}
+
 function kartHTML(b) {
   var hatDatei = !!b.dateipfad;
   var istBild = hatDatei && /\.(jpg|jpeg|png|gif|webp)$/i.test(b.dateiname || '');
@@ -485,6 +500,7 @@ function kartHTML(b) {
         (b.verifiziert ? '<span class="badge verif-ja" title="Datum und Belegnummer wurden aus dem Foto gelesen">✓ Verifiziert</span>'
                        : '<span class="badge verif-nein" title="Von Hand eingetragen">Manuell</span>') +
       '</div>' +
+      autoInfoHTML(b) +
       (b.notiz ? '<div class="card-note">' + escapeHtml(b.notiz) + '</div>' : '') +
     '</div>' +
     '<div class="card-actions">' +
@@ -620,11 +636,11 @@ function loescheDateiVorschau() {
 
 // ===== Beleg-Scan =====
 function setzeScanZurueck() {
-  scanState = { token: null, datum: null, belegnummer: null, laufend: false };
+  scanState = { token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, laufend: false };
   var st = document.getElementById('scanStatus');
   if (st) { st.className = 'scan-status hidden'; st.textContent = ''; }
   zeigeScanDetails('');
-  ['hintDatum', 'hintBelegnummer'].forEach(function(id) {
+  ['hintDatum', 'hintBelegnummer', 'hintBetrag'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
@@ -667,13 +683,16 @@ function aktualisiereScanHinweise() {
   if (!scanState.token) return;
   var datum = document.getElementById('feldDatum').value;
   var nr = document.getElementById('feldBelegnummer').value.trim();
+  var betragOk = scanState.betrag != null && Math.abs(parseFloat(document.getElementById('feldBetrag').value) - scanState.betrag) < 0.005 &&
+    (!scanState.waehrung || document.getElementById('feldWaehrung').value === scanState.waehrung);
+  document.getElementById('hintBetrag').classList.toggle('hidden', !betragOk);
   var datumOk = !!scanState.datum && datum === scanState.datum;
   var nrOk = !!scanState.belegnummer && nr === scanState.belegnummer;
   document.getElementById('hintDatum').classList.toggle('hidden', !datumOk);
   document.getElementById('hintBelegnummer').classList.toggle('hidden', !nrOk);
   if (datumOk && nrOk) {
     zeigeScanStatus('ok', 'Datum und Belegnummer aus dem Foto gelesen – der Beleg wird als verifiziert gespeichert.');
-  } else if (scanState.datum || scanState.belegnummer) {
+  } else if (scanState.datum || scanState.belegnummer || scanState.betrag != null) {
     zeigeScanStatus('warn', 'Nicht alles automatisch erkannt oder geändert – bitte prüfen. Der Beleg wird als manuell (nicht verifiziert) gespeichert.');
   } else {
     zeigeScanStatus('warn', 'Auf dem Foto konnten Datum und Belegnummer nicht gelesen werden. Bitte von Hand eintragen – der Beleg ist dann nicht verifiziert.');
@@ -729,6 +748,10 @@ function scanneBild(file) {
       scanState.token = data.scanToken;
       scanState.datum = data.datum;
       scanState.belegnummer = data.belegnummer;
+      scanState.betrag = data.betrag != null ? data.betrag : null;
+      scanState.waehrung = data.waehrung || null;
+      if (data.betrag != null) document.getElementById('feldBetrag').value = data.betrag.toFixed(2);
+      if (data.waehrung) setWaehrung(data.waehrung);
       if (data.datum) document.getElementById('feldDatum').value = data.datum;
       if (data.belegnummer) document.getElementById('feldBelegnummer').value = data.belegnummer;
       fertig();
@@ -737,7 +760,7 @@ function scanneBild(file) {
       } else {
         aktualisiereScanHinweise();
       }
-      if (!data.datum || !data.belegnummer) zeigeScanDetails(data.text || '(kein Text erkannt)');
+      if (!data.datum || !data.belegnummer || data.betrag == null) zeigeScanDetails(data.text || '(kein Text erkannt)');
     } catch (e) { manuell('Antwort nicht lesbar: ' + e.message); }
   };
   xhr.ontimeout = function() { manuell('Zeitüberschreitung (120 s)'); };

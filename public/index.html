@@ -115,7 +115,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg> Beleg fotografieren
               <input type="file" id="feldFoto" accept="image/*" capture="environment" class="sr-file">
             </label>
-            <p class="foto-hint">Das Foto wird automatisch verkleinert (schnellerer Upload) und Datum sowie Belegnummer werden daraus gelesen.</p>
+            <p class="foto-hint">Das Foto wird automatisch verkleinert (schnellerer Upload). Datum, Belegnummer, Betrag und Währung werden daraus gelesen.</p>
             <div class="upload-area" id="uploadArea">
               <input type="file" id="feldDatei" accept="image/*,.pdf" class="file-input" aria-label="Oder Datei auswählen">
               <div class="upload-placeholder" id="uploadPlaceholder">
@@ -151,6 +151,7 @@
               <input type="number" id="feldBetrag" class="input-field" placeholder="0.00" step="0.01" min="0">
               <input type="hidden" id="feldWaehrung" value="EUR">
             </div>
+            <small class="field-hint hidden" id="hintBetrag">✓ Betrag und Währung aus dem Foto gelesen</small>
           </div>
           <div class="form-group form-full">
             <label for="feldBelegnummer">Letzte 3 Ziffern der Belegnummer *</label>

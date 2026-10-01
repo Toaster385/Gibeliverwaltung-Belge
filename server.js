@@ -72,6 +72,10 @@ const migrations = [
   `ALTER TABLE belege ADD COLUMN belegnummer TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE benutzer ADD COLUMN pin TEXT`,
   `ALTER TABLE belege ADD COLUMN verifiziert INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE belege ADD COLUMN auto_datum INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE belege ADD COLUMN auto_belegnummer INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE belege ADD COLUMN auto_betrag INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE belege ADD COLUMN auto_waehrung INTEGER NOT NULL DEFAULT 0`,
 ];
 for (const m of migrations) { try { db.exec(m); } catch (e) {} }
 
@@ -573,9 +577,11 @@ app.post('/api/belege/scan', requireLogin, scanUpload.single('datei'), async (re
   }
   scans.set(token, {
     userId: req.session.benutzer.id, pfad: req.file.path, originalname: req.file.originalname,
-    datum: erkannt.datum, belegnummer: erkannt.belegnummer, ablauf: Date.now() + SCAN_TTL
+    datum: erkannt.datum, belegnummer: erkannt.belegnummer, betrag: erkannt.betrag, waehrung: erkannt.waehrung,
+    ablauf: Date.now() + SCAN_TTL
   });
-  res.json({ scanToken: token, datum: erkannt.datum, belegnummer: erkannt.belegnummer, lesefehler, text: text.slice(0, 1500) });
+  res.json({ scanToken: token, datum: erkannt.datum, belegnummer: erkannt.belegnummer,
+    betrag: erkannt.betrag, waehrung: erkannt.waehrung, lesefehler, text: text.slice(0, 1500) });
 });
 
 // Gibt den zwischengespeicherten Scan frei und verschiebt die Datei in den Upload-Ordner.
@@ -585,11 +591,22 @@ function nimmScan(token, userId) {
   scans.delete(String(token));
   const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(e.pfad)}`;
   fs.renameSync(e.pfad, path.join(uploadsDir, name));
-  return { filename: name, originalname: e.originalname, datum: e.datum, belegnummer: e.belegnummer };
+  return { filename: name, originalname: e.originalname, datum: e.datum, belegnummer: e.belegnummer, betrag: e.betrag, waehrung: e.waehrung };
 }
 
 function istVerifiziert(scan, datum, belegnummer) {
   return !!(scan && scan.datum && scan.belegnummer && scan.datum === datum && scan.belegnummer === belegnummer);
+}
+
+// Welche Felder stammen unverändert aus dem Foto? (für die Kennzeichnung bei den Admins)
+function autoFelder(scan, werte) {
+  const gleich = (a, b) => a !== null && a !== undefined && a === b;
+  return {
+    auto_datum: scan && gleich(scan.datum, werte.datum) ? 1 : 0,
+    auto_belegnummer: scan && gleich(scan.belegnummer, werte.belegnummer) ? 1 : 0,
+    auto_betrag: scan && scan.betrag != null && Math.abs(scan.betrag - werte.betrag) < 0.005 ? 1 : 0,
+    auto_waehrung: scan && gleich(scan.waehrung, werte.waehrung) ? 1 : 0
+  };
 }
 
 // ===== BELEGE ROUTES =====
@@ -638,14 +655,18 @@ app.post('/api/belege', requireLogin, upload.single('datei'), (req, res) => {
     return res.status(400).json({ error: 'Bitte die letzten 3 Ziffern der Belegnummer angeben' });
   }
 
+  const waehrungNeu = waehrung === 'CHF' ? 'CHF' : 'EUR';
+  const af = autoFelder(scan, { datum, belegnummer: belegnummer.trim(), betrag: parseFloat(betrag), waehrung: waehrungNeu });
   const result = db.prepare(`
-    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung, belegnummer, verifiziert)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung, belegnummer, verifiziert,
+                        auto_datum, auto_belegnummer, auto_betrag, auto_waehrung)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     req.session.benutzer.id, datum, geschaeft || '', parseFloat(betrag),
     notiz || null, datei.originalname, datei.filename,
     waehrung === 'CHF' ? 'CHF' : 'EUR', belegnummer.trim(),
-    istVerifiziert(scan, datum, belegnummer.trim()) ? 1 : 0
+    istVerifiziert(scan, datum, belegnummer.trim()) ? 1 : 0,
+    af.auto_datum, af.auto_belegnummer, af.auto_betrag, af.auto_waehrung
   );
   res.status(201).json(db.prepare('SELECT * FROM belege WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -673,19 +694,31 @@ app.put('/api/belege/:id', requireLogin, upload.single('datei'), (req, res) => {
   const neuNummer = belegnummer !== undefined ? belegnummer.trim() : existing.belegnummer;
   // Verifiziert bleibt nur, wenn Datum und Belegnummer unverändert sind (oder aus neuem Scan stammen)
   let verifiziert = existing.verifiziert && neuDatum === existing.datum && neuNummer === existing.belegnummer ? 1 : 0;
+  const neuBetrag = betrag !== undefined ? parseFloat(betrag) : existing.betrag;
+  const neuWaehrung = waehrung || existing.waehrung;
+  // Automatisch gelesene Felder bleiben nur markiert, solange der Wert unverändert ist
+  let af = {
+    auto_datum: existing.auto_datum && neuDatum === existing.datum ? 1 : 0,
+    auto_belegnummer: existing.auto_belegnummer && neuNummer === existing.belegnummer ? 1 : 0,
+    auto_betrag: existing.auto_betrag && Math.abs(neuBetrag - existing.betrag) < 0.005 ? 1 : 0,
+    auto_waehrung: existing.auto_waehrung && neuWaehrung === existing.waehrung ? 1 : 0
+  };
   const scan = !req.file ? nimmScan(scanToken, req.session.benutzer.id) : null;
   if (req.file || scan) {
     if (existing.dateipfad) { const old = path.join(uploadsDir, existing.dateipfad); if (fs.existsSync(old)) fs.unlinkSync(old); }
     dateipfad = req.file ? req.file.filename : scan.filename;
     dateiname = req.file ? req.file.originalname : scan.originalname;
     verifiziert = istVerifiziert(scan, neuDatum, neuNummer) ? 1 : 0;
+    af = autoFelder(scan, { datum: neuDatum, belegnummer: neuNummer, betrag: neuBetrag, waehrung: neuWaehrung });
   }
-  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=?,belegnummer=?,verifiziert=? WHERE id=?`)
+  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=?,belegnummer=?,verifiziert=?,
+              auto_datum=?,auto_belegnummer=?,auto_betrag=?,auto_waehrung=? WHERE id=?`)
     .run(neuDatum, geschaeft!==undefined?geschaeft:existing.geschaeft,
-      betrag!==undefined?parseFloat(betrag):existing.betrag,
+      neuBetrag,
       notiz!==undefined?notiz:existing.notiz,
-      dateiname, dateipfad, waehrung||existing.waehrung,
+      dateiname, dateipfad, neuWaehrung,
       neuNummer, verifiziert,
+      af.auto_datum, af.auto_belegnummer, af.auto_betrag, af.auto_waehrung,
       req.params.id);
   res.json(db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id));
 });

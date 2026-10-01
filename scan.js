@@ -66,6 +66,45 @@ function extractBelegnummer(text) {
   return schwach;
 }
 
+// Betrag + Währung: Zeile mit Stichwort wie TOTAL / Summe / Gesamt / zu zahlen
+const SUMME_STARK = /(total|summe|gesamt|zu zahlen|zahlbetrag|endbetrag|amount due|à payer|betrag)/i;
+const SUMME_AUS = /(zwischen|sub\s?total|mwst|mw-st|ust|steuer|tax|rück|rueck|change|gegeben|bezahlt|paid|rabatt|bar\b|cumulus|punkte|artikel|anzahl)/i;
+const BETRAG_RE = /(?<![\d.,'’])(\d{1,3}(?:['’ ]\d{3})+|\d+)\s?[.,]\s?(\d{2})(?![\d])/g;
+
+function betraegeInZeile(zeile) {
+  const out = [];
+  let m;
+  BETRAG_RE.lastIndex = 0;
+  while ((m = BETRAG_RE.exec(zeile))) out.push(parseFloat(m[1].replace(/\D/g, '') + '.' + m[2]));
+  return out;
+}
+
+function waehrungIn(text) {
+  const chf = (text.match(/\bCHF\b|\bSFr\.?|\bFr\.(?=\s?\d)/gi) || []).length;
+  const eur = (text.match(/\bEUR\b|€/gi) || []).length;
+  if (!chf && !eur) return null;
+  return chf >= eur ? 'CHF' : 'EUR';
+}
+
+function extractBetrag(text) {
+  const zeilen = text.split(/\r?\n/);
+  for (let i = 0; i < zeilen.length; i++) {
+    const z = zeilen[i];
+    const k = z.match(SUMME_STARK);
+    if (!k || SUMME_AUS.test(z)) continue;
+    let werte = betraegeInZeile(z.slice(k.index + k[0].length));
+    let quelle = z;
+    if (!werte.length) { // Betrag steht manchmal in der nächsten Zeile
+      const naechste = zeilen.slice(i + 1).find(x => x.trim());
+      if (naechste && !SUMME_AUS.test(naechste)) { werte = betraegeInZeile(naechste); quelle = naechste; }
+    }
+    if (werte.length && werte[0] > 0) {
+      return { betrag: werte[0], waehrung: waehrungIn(z) || waehrungIn(quelle) || waehrungIn(text) };
+    }
+  }
+  return null;
+}
+
 // ---------- OCR ----------
 let workerPromise = null;
 let warteschlange = Promise.resolve();
@@ -110,15 +149,16 @@ function lies(dateipfad, psm) {
 
 async function scanneBeleg(dateipfad) {
   let text = await lies(dateipfad, 3); // automatische Seitenanalyse
-  let datum = extractDatum(text), belegnummer = extractBelegnummer(text);
-  if (!datum || !belegnummer) {
+  let datum = extractDatum(text), belegnummer = extractBelegnummer(text), summe = extractBetrag(text);
+  if (!datum || !belegnummer || !summe) {
     // Zweiter Versuch: Beleg als einheitlicher Textblock lesen (hilft bei schmalen Kassenzetteln)
     const text2 = await lies(dateipfad, 6);
     datum = datum || extractDatum(text2);
     belegnummer = belegnummer || extractBelegnummer(text2);
+    summe = summe || extractBetrag(text2);
     text = text + '\n--- 2. Durchgang ---\n' + text2;
   }
-  return { datum, belegnummer, text };
+  return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, text };
 }
 
-module.exports = { scanneBeleg, extractDatum, extractBelegnummer };
+module.exports = { scanneBeleg, extractDatum, extractBelegnummer, extractBetrag };

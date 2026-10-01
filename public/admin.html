@@ -33,7 +33,7 @@
     .stat-box .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin-bottom: 2px; }
     .stat-box .value { font-family: var(--font-head); font-size: 24px; font-weight: 600; color: var(--tanne); }
 
-    table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 520px; }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 640px; }
     th { text-align: left; padding: 8px 10px; font-size: 12px; text-transform: uppercase; color: var(--holz); letter-spacing: .06em; border-bottom: 2px solid var(--border); white-space: nowrap; }
     td { padding: 10px; border-bottom: 1px solid #EEE9DD; color: var(--text); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
@@ -44,6 +44,8 @@
     .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
     .badge-eingetragen, .badge-aktiv { background: var(--tanne-hell); color: var(--tanne); }
     .badge-ausstehend { background: var(--holz-hell); color: #6E4829; }
+    .chip-auto { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--blau-hell); color: #1F4E66; border: 1px solid var(--blau); white-space: nowrap; vertical-align: middle; }
+    .auto-legende { font-size: 13px; margin: -6px 0 12px; }
     .badge-verif { background: var(--blau-hell); color: #1F4E66; }
     .badge-inaktiv { background: #EEEBE4; color: var(--text-muted); }
 
@@ -204,9 +206,10 @@
       <!-- 3. Alle Belege -->
       <div class="card">
         <h2>Alle Belege</h2>
+        <p class="auto-legende"><span class="chip-auto">auto</span> = automatisch aus dem Foto gelesen und unverändert übernommen. Werte ohne Markierung wurden von Hand eingetragen.</p>
         <table>
           <thead>
-            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Betrag</th><th>Status</th><th>Aktionen</th></tr>
+            <tr><th>Datum</th><th>Benutzer</th><th>Geschäft</th><th>Nr.</th><th>Betrag</th><th>Status</th><th>Aktionen</th></tr>
           </thead>
           <tbody id="belegeTableBody"></tbody>
         </table>
@@ -485,10 +488,12 @@
           document.getElementById('belegeTableBody').innerHTML = belege.map(function(b) {
             var istEingetragen = b.status === 'eingetragen';
             return '<tr>' +
-              '<td>' + new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE') + '</td>' +
+              '<td>' + new Date(b.datum + 'T00:00:00').toLocaleDateString('de-DE') + chipAuto(b.auto_datum) + '</td>' +
               '<td>' + esc(b.benutzername) + '</td>' +
               '<td>' + esc(b.geschaeft) + '</td>' +
-              '<td><strong>' + fmt(b.betrag, b.waehrung) + '</strong></td>' +
+              '<td>' + (b.belegnummer ? '…' + esc(b.belegnummer) : '–') + chipAuto(b.auto_belegnummer) + '</td>' +
+              '<td><strong>' + fmt(b.betrag, b.waehrung) + '</strong>' +
+                (b.auto_betrag && b.auto_waehrung ? chipAuto(1) : chipAuto(b.auto_betrag, 'Betrag auto') + chipAuto(b.auto_waehrung, 'Währung auto')) + '</td>' +
               '<td><span class="badge ' + (istEingetragen ? 'badge-eingetragen' : 'badge-ausstehend') + '">' +
                 (istEingetragen ? '✓ Eingetragen' : 'Ausstehend') + '</span> ' +
                 (b.verifiziert ? '<span class="badge badge-verif">✓ Verifiziert</span>' : '<span class="badge badge-inaktiv">Manuell</span>') + '</td>' +
@@ -497,10 +502,14 @@
                   (istEingetragen ? 'Ausstehend' : 'Eingetragen') + '</button>' +
                 '<button class="btn-sm btn-danger" onclick="loescheBeleg(' + b.id + ')">Löschen</button>' +
               '</td></tr>';
-          }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Keine Belege vorhanden</td></tr>';
+          }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Keine Belege vorhanden</td></tr>';
         } catch(e) {}
       };
       xhr.send();
+    }
+
+    function chipAuto(flag, text) {
+      return flag ? ' <span class="chip-auto" title="Automatisch aus dem Foto gelesen">' + (text || 'auto') + '</span>' : '';
     }
 
     function toggleStatus(id, currentStatus) {
