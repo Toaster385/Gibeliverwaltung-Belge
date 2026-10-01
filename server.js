@@ -5,6 +5,8 @@ const fs = require('fs');
 const Database = require('better-sqlite3');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { scanneBeleg } = require('./scan');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,9 +16,11 @@ app.set('trust proxy', 1);
 const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 const belegungDir = path.join(dataDir, 'belegung');
+const scanTmpDir = path.join(uploadsDir, '.scan-tmp'); // Punkt-Ordner: wird von express.static nicht ausgeliefert
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(belegungDir)) fs.mkdirSync(belegungDir, { recursive: true });
+if (!fs.existsSync(scanTmpDir)) fs.mkdirSync(scanTmpDir, { recursive: true });
 
 // ===== Database =====
 const db = new Database(path.join(dataDir, 'belege.db'));
@@ -67,6 +71,7 @@ const migrations = [
   `ALTER TABLE belege ADD COLUMN kategorie TEXT NOT NULL DEFAULT 'Sonstiges'`,
   `ALTER TABLE belege ADD COLUMN belegnummer TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE benutzer ADD COLUMN pin TEXT`,
+  `ALTER TABLE belege ADD COLUMN verifiziert INTEGER NOT NULL DEFAULT 0`,
 ];
 for (const m of migrations) { try { db.exec(m); } catch (e) {} }
 
@@ -515,6 +520,75 @@ app.delete('/api/belegung', requireVerwaltung, (req, res) => {
   res.json({ success: true });
 });
 
+// ===== BELEG-SCAN (OCR) =====
+// Das Foto wird einmal hochgeladen (clientseitig bereits komprimiert), serverseitig gelesen und kurz
+// zwischengespeichert. Beim Speichern des Belegs wird nur noch der scanToken mitgeschickt –
+// so muss das Bild bei langsamem Internet nicht doppelt übertragen werden.
+// "Verifiziert" wird ausschliesslich hier auf dem Server entschieden (Datum UND Belegnummer wurden
+// aus dem Foto gelesen und unverändert übernommen).
+const scans = new Map(); // token -> { userId, pfad, originalname, datum, belegnummer, ablauf }
+const SCAN_TTL = 30 * 60 * 1000;
+
+function raeumeScansAuf() {
+  const jetzt = Date.now();
+  for (const [token, e] of scans) {
+    if (e.ablauf < jetzt) { try { fs.unlinkSync(e.pfad); } catch (err) {} scans.delete(token); }
+  }
+  // Verwaiste Dateien (z.B. nach Neustart) nach 2 Stunden entfernen
+  try {
+    for (const f of fs.readdirSync(scanTmpDir)) {
+      const fp = path.join(scanTmpDir, f);
+      if (jetzt - fs.statSync(fp).mtimeMs > 2 * 3600 * 1000) fs.unlinkSync(fp);
+    }
+  } catch (err) {}
+}
+raeumeScansAuf();
+setInterval(raeumeScansAuf, 10 * 60 * 1000).unref();
+
+const scanUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, scanTmpDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname).toLowerCase() || '.jpg'}`)
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/\.(jpe?g|png|webp)$/i.test(file.originalname) && /^image\/(jpeg|png|webp)$/.test(file.mimetype)) return cb(null, true);
+    cb(new Error('Nur Fotos (JPG, PNG, WebP) können gelesen werden'));
+  }
+});
+
+app.post('/api/belege/scan', requireLogin, scanUpload.single('datei'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Kein Foto hochgeladen' });
+  const token = crypto.randomBytes(16).toString('hex');
+  let erkannt = { datum: null, belegnummer: null };
+  let lesefehler = null;
+  try {
+    erkannt = await scanneBeleg(req.file.path);
+  } catch (e) {
+    lesefehler = e.message === 'ausgelastet' ? 'ausgelastet' : 'fehlgeschlagen';
+    console.error('Scan-Fehler:', e.message);
+  }
+  scans.set(token, {
+    userId: req.session.benutzer.id, pfad: req.file.path, originalname: req.file.originalname,
+    datum: erkannt.datum, belegnummer: erkannt.belegnummer, ablauf: Date.now() + SCAN_TTL
+  });
+  res.json({ scanToken: token, datum: erkannt.datum, belegnummer: erkannt.belegnummer, lesefehler });
+});
+
+// Gibt den zwischengespeicherten Scan frei und verschiebt die Datei in den Upload-Ordner.
+function nimmScan(token, userId) {
+  const e = token && scans.get(String(token));
+  if (!e || e.userId !== userId || e.ablauf < Date.now() || !fs.existsSync(e.pfad)) return null;
+  scans.delete(String(token));
+  const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(e.pfad)}`;
+  fs.renameSync(e.pfad, path.join(uploadsDir, name));
+  return { filename: name, originalname: e.originalname, datum: e.datum, belegnummer: e.belegnummer };
+}
+
+function istVerifiziert(scan, datum, belegnummer) {
+  return !!(scan && scan.datum && scan.belegnummer && scan.datum === datum && scan.belegnummer === belegnummer);
+}
+
 // ===== BELEGE ROUTES =====
 app.get('/api/belege', requireLogin, (req, res) => {
   const { von, bis, suche } = req.query;
@@ -547,21 +621,28 @@ app.post('/api/belege', requireLogin, upload.single('datei'), (req, res) => {
       return res.status(403).json({ error: 'Die Kasse ist geschlossen – keine Änderungen möglich' });
     }
   }
-  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer } = req.body;
-  if (!datum || betrag === undefined || !req.file)
+  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer, scanToken } = req.body;
+  // Datei: entweder normal hochgeladen (manuell, nie verifiziert) oder aus einem vorherigen Scan
+  const scan = !req.file ? nimmScan(scanToken, req.session.benutzer.id) : null;
+  const datei = req.file ? { filename: req.file.filename, originalname: req.file.originalname } : scan;
+  if (!datum || betrag === undefined || !datei) {
+    if (scan) try { fs.unlinkSync(path.join(uploadsDir, scan.filename)); } catch (e) {}
     return res.status(400).json({ error: 'Datum, Betrag und Datei sind Pflichtfelder' });
+  }
   if (!belegnummer || !/^\d{3}$/.test(belegnummer.trim())) {
     if (req.file) fs.unlinkSync(req.file.path);
+    if (scan) try { fs.unlinkSync(path.join(uploadsDir, scan.filename)); } catch (e) {}
     return res.status(400).json({ error: 'Bitte die letzten 3 Ziffern der Belegnummer angeben' });
   }
 
   const result = db.prepare(`
-    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung, belegnummer)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung, belegnummer, verifiziert)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     req.session.benutzer.id, datum, geschaeft || '', parseFloat(betrag),
-    notiz || null, req.file.originalname, req.file.filename,
-    waehrung === 'CHF' ? 'CHF' : 'EUR', belegnummer.trim()
+    notiz || null, datei.originalname, datei.filename,
+    waehrung === 'CHF' ? 'CHF' : 'EUR', belegnummer.trim(),
+    istVerifiziert(scan, datum, belegnummer.trim()) ? 1 : 0
   );
   res.status(201).json(db.prepare('SELECT * FROM belege WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -583,18 +664,25 @@ app.put('/api/belege/:id', requireLogin, upload.single('datei'), (req, res) => {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: 'Eingetragene Belege können nicht mehr bearbeitet werden' });
   }
-  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer } = req.body;
+  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer, scanToken } = req.body;
   let dateipfad = existing.dateipfad, dateiname = existing.dateiname;
-  if (req.file) {
+  const neuDatum = datum || existing.datum;
+  const neuNummer = belegnummer !== undefined ? belegnummer.trim() : existing.belegnummer;
+  // Verifiziert bleibt nur, wenn Datum und Belegnummer unverändert sind (oder aus neuem Scan stammen)
+  let verifiziert = existing.verifiziert && neuDatum === existing.datum && neuNummer === existing.belegnummer ? 1 : 0;
+  const scan = !req.file ? nimmScan(scanToken, req.session.benutzer.id) : null;
+  if (req.file || scan) {
     if (existing.dateipfad) { const old = path.join(uploadsDir, existing.dateipfad); if (fs.existsSync(old)) fs.unlinkSync(old); }
-    dateipfad = req.file.filename; dateiname = req.file.originalname;
+    dateipfad = req.file ? req.file.filename : scan.filename;
+    dateiname = req.file ? req.file.originalname : scan.originalname;
+    verifiziert = istVerifiziert(scan, neuDatum, neuNummer) ? 1 : 0;
   }
-  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=?,belegnummer=? WHERE id=?`)
-    .run(datum||existing.datum, geschaeft!==undefined?geschaeft:existing.geschaeft,
+  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=?,belegnummer=?,verifiziert=? WHERE id=?`)
+    .run(neuDatum, geschaeft!==undefined?geschaeft:existing.geschaeft,
       betrag!==undefined?parseFloat(betrag):existing.betrag,
       notiz!==undefined?notiz:existing.notiz,
       dateiname, dateipfad, waehrung||existing.waehrung,
-      belegnummer!==undefined?belegnummer.trim():existing.belegnummer,
+      neuNummer, verifiziert,
       req.params.id);
   res.json(db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id));
 });

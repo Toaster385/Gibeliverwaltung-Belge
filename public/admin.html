@@ -44,6 +44,7 @@
     .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
     .badge-eingetragen, .badge-aktiv { background: var(--tanne-hell); color: var(--tanne); }
     .badge-ausstehend { background: var(--holz-hell); color: #6E4829; }
+    .badge-verif { background: var(--blau-hell); color: #1F4E66; }
     .badge-inaktiv { background: #EEEBE4; color: var(--text-muted); }
 
     .btn-sm, .btn-status, .btn-activate, .btn-deactivate { min-height: 40px; padding: 6px 14px; border-radius: var(--radius); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: 1.5px solid transparent; transition: background var(--t), color var(--t), border-color var(--t); }
@@ -489,7 +490,8 @@
               '<td>' + esc(b.geschaeft) + '</td>' +
               '<td><strong>' + fmt(b.betrag, b.waehrung) + '</strong></td>' +
               '<td><span class="badge ' + (istEingetragen ? 'badge-eingetragen' : 'badge-ausstehend') + '">' +
-                (istEingetragen ? '✓ Eingetragen' : 'Ausstehend') + '</span></td>' +
+                (istEingetragen ? '✓ Eingetragen' : 'Ausstehend') + '</span> ' +
+                (b.verifiziert ? '<span class="badge badge-verif">✓ Verifiziert</span>' : '<span class="badge badge-inaktiv">Manuell</span>') + '</td>' +
               '<td class="td-actions">' +
                 '<button class="btn-sm btn-status" onclick="toggleStatus(' + b.id + ',\'' + b.status + '\')">' +
                   (istEingetragen ? 'Ausstehend' : 'Eingetragen') + '</button>' +

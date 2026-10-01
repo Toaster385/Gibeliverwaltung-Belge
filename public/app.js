@@ -7,6 +7,8 @@ let statsData = null;
 let kasseGeschlossen = false;
 let statsWaehrung = 'EUR';
 let currentUser = null;
+// Beleg-Scan: Foto wurde komprimiert, auf dem Server gelesen und wartet dort (scanToken)
+let scanState = { token: null, datum: null, belegnummer: null, laufend: false };
 
 const filterSuche = document.getElementById('filterSuche');
 const filterVon = document.getElementById('filterVon');
@@ -166,14 +168,19 @@ function setupEventListeners() {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
     if (e.dataTransfer.files.length > 0) {
-      feldDatei.files = e.dataTransfer.files;
-      zeigeVorschau(e.dataTransfer.files[0]);
+      verarbeiteDatei(e.dataTransfer.files[0]);
     }
   });
 
   feldDatei.addEventListener('change', function(e) {
-    if (e.target.files.length > 0) zeigeVorschau(e.target.files[0]);
+    if (e.target.files.length > 0) verarbeiteDatei(e.target.files[0]);
   });
+  document.getElementById('feldFoto').addEventListener('change', function(e) {
+    if (e.target.files.length > 0) verarbeiteDatei(e.target.files[0]);
+    e.target.value = '';
+  });
+  document.getElementById('feldDatum').addEventListener('input', aktualisiereScanHinweise);
+  document.getElementById('feldBelegnummer').addEventListener('input', aktualisiereScanHinweise);
 
   document.getElementById('btnRemoveFile').addEventListener('click', function(e) {
     e.stopPropagation();
@@ -266,8 +273,11 @@ function aktualisiereStatistikAnzeige() {
 }
 
 // ===== Image Compression =====
-function komprimieresBild(file, callback) {
-  if (!file.type.startsWith('image/') || file.size < 400 * 1024) {
+function komprimieresBild(file, callback, opts) {
+  opts = opts || {};
+  var maxDim = opts.maxDim || 1600;
+  var qualitaet = opts.qualitaet || 0.82;
+  if (!file.type.startsWith('image/') || (!opts.immer && file.size < 400 * 1024)) {
     callback(file, false);
     return;
   }
@@ -275,7 +285,6 @@ function komprimieresBild(file, callback) {
   reader.onload = function(e) {
     var img = new Image();
     img.onload = function() {
-      var maxDim = 1600;
       var w = img.width, h = img.height;
       if (w > maxDim || h > maxDim) {
         if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
@@ -290,7 +299,7 @@ function komprimieresBild(file, callback) {
         var nameBase = file.name.replace(/\.[^.]+$/, '');
         var compressed = new File([blob], nameBase + '.jpg', { type: 'image/jpeg' });
         callback(compressed, true);
-      }, 'image/jpeg', 0.82);
+      }, 'image/jpeg', qualitaet);
     };
     img.onerror = function() { callback(file, false); };
     img.src = e.target.result;
@@ -326,7 +335,12 @@ function speichereBeleg(e) {
     formError.classList.remove('hidden');
     return;
   }
-  if (!dateiFile && !hatExistingFile) {
+  if (scanState.laufend) {
+    formError.textContent = 'Der Beleg wird noch gelesen – bitte einen Moment warten.';
+    formError.classList.remove('hidden');
+    return;
+  }
+  if (!dateiFile && !hatExistingFile && !scanState.token) {
     formError.textContent = 'Bitte einen Beleg (Bild oder PDF) hochladen.';
     formError.classList.remove('hidden');
     return;
@@ -343,6 +357,9 @@ function speichereBeleg(e) {
   formData.append('notiz', document.getElementById('feldNotiz').value);
   formData.append('waehrung', document.getElementById('feldWaehrung').value);
   if (deleteFileFlag) formData.append('deleteFile', 'true');
+  // Foto wurde bereits beim Scan hochgeladen – nur noch das Kürzel mitschicken (spart Upload bei langsamem Internet)
+  var nutzeScan = !!scanState.token;
+  if (nutzeScan) formData.append('scanToken', scanState.token);
 
   function senden(fileToSend) {
     if (fileToSend) formData.append('datei', fileToSend);
@@ -371,7 +388,9 @@ function speichereBeleg(e) {
     xhr.send(formData);
   }
 
-  if (dateiFile && dateiFile.type.startsWith('image/') && dateiFile.size > 400 * 1024) {
+  if (nutzeScan) {
+    senden(null);
+  } else if (dateiFile && dateiFile.type.startsWith('image/') && dateiFile.size > 400 * 1024) {
     btn.textContent = 'Bild wird komprimiert...';
     komprimieresBild(dateiFile, function(compressed, wurdeKomprimiert) {
       if (wurdeKomprimiert) {
@@ -458,6 +477,8 @@ function kartHTML(b) {
         (b.belegnummer ? '<span class="card-nr">Nr. …' + escapeHtml(b.belegnummer) + '</span>' : '') +
         '<span class="badge status-' + (b.status || 'ausstehend') + '">' +
           (istEingetragen ? '✓ Eingetragen' : 'Ausstehend') + '</span>' +
+        (b.verifiziert ? '<span class="badge verif-ja" title="Datum und Belegnummer wurden aus dem Foto gelesen">✓ Verifiziert</span>'
+                       : '<span class="badge verif-nein" title="Von Hand eingetragen">Manuell</span>') +
       '</div>' +
       (b.notiz ? '<div class="card-note">' + escapeHtml(b.notiz) + '</div>' : '') +
     '</div>' +
@@ -584,10 +605,118 @@ function zeigeVorschau(file) {
 }
 
 function loescheDateiVorschau() {
+  setzeScanZurueck();
   document.getElementById('feldDatei').value = '';
   document.getElementById('uploadPlaceholder').classList.remove('hidden');
   document.getElementById('uploadPreview').classList.add('hidden');
   document.getElementById('previewImg').src = '';
+}
+
+
+// ===== Beleg-Scan =====
+function setzeScanZurueck() {
+  scanState = { token: null, datum: null, belegnummer: null, laufend: false };
+  var st = document.getElementById('scanStatus');
+  if (st) { st.className = 'scan-status hidden'; st.textContent = ''; }
+  ['hintDatum', 'hintBelegnummer'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+  var btn = document.getElementById('btnSpeichern');
+  if (btn) btn.disabled = false;
+}
+
+function zeigeScanStatus(art, text) {
+  var st = document.getElementById('scanStatus');
+  st.className = 'scan-status scan-' + art;
+  st.textContent = '';
+  if (art === 'busy') {
+    var sp = document.createElement('span');
+    sp.className = 'spinner';
+    sp.setAttribute('aria-hidden', 'true');
+    st.appendChild(sp);
+  }
+  st.appendChild(document.createTextNode(text));
+}
+
+// Zeigt an, ob die Felder noch den automatisch gelesenen Werten entsprechen (= wird "verifiziert")
+function aktualisiereScanHinweise() {
+  if (!scanState.token) return;
+  var datum = document.getElementById('feldDatum').value;
+  var nr = document.getElementById('feldBelegnummer').value.trim();
+  var datumOk = !!scanState.datum && datum === scanState.datum;
+  var nrOk = !!scanState.belegnummer && nr === scanState.belegnummer;
+  document.getElementById('hintDatum').classList.toggle('hidden', !datumOk);
+  document.getElementById('hintBelegnummer').classList.toggle('hidden', !nrOk);
+  if (datumOk && nrOk) {
+    zeigeScanStatus('ok', 'Datum und Belegnummer aus dem Foto gelesen – der Beleg wird als verifiziert gespeichert.');
+  } else if (scanState.datum || scanState.belegnummer) {
+    zeigeScanStatus('warn', 'Nicht alles automatisch erkannt oder geändert – bitte prüfen. Der Beleg wird als manuell (nicht verifiziert) gespeichert.');
+  } else {
+    zeigeScanStatus('warn', 'Auf dem Foto konnten Datum und Belegnummer nicht gelesen werden. Bitte von Hand eintragen – der Beleg ist dann nicht verifiziert.');
+  }
+}
+
+// Einstieg für jede neu gewählte/aufgenommene Datei
+function verarbeiteDatei(file) {
+  setzeScanZurueck();
+  if (!file.type.startsWith('image/')) {
+    // PDF o. Ä.: kein Scan möglich -> manuell
+    zeigeVorschau(file);
+    zeigeScanStatus('warn', 'Dieser Dateityp wird nicht gelesen. Bitte Datum und Belegnummer von Hand eintragen (nicht verifiziert).');
+    return;
+  }
+  zeigeVorschau(file);
+  var btn = document.getElementById('btnSpeichern');
+  scanState.laufend = true;
+  btn.disabled = true;
+  zeigeScanStatus('busy', 'Foto wird verkleinert …');
+  komprimieresBild(file, function(klein) {
+    // komprimiertes Bild in das Dateifeld übernehmen (Fallback ohne DataTransfer: Scan-Token genügt)
+    try {
+      var dt = new DataTransfer();
+      dt.items.add(klein);
+      document.getElementById('feldDatei').files = dt.files;
+    } catch (e) {}
+    zeigeVorschau(klein);
+    zeigeToast('Foto verkleinert: ' + Math.round(klein.size / 1024) + ' KB', '');
+    scanneBild(klein);
+  }, { immer: true, maxDim: 2000, qualitaet: 0.72 });
+}
+
+function scanneBild(file) {
+  var btn = document.getElementById('btnSpeichern');
+  zeigeScanStatus('busy', 'Beleg wird hochgeladen und gelesen – bei langsamem Internet kann das einen Moment dauern …');
+  var fd = new FormData();
+  fd.append('datei', file);
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/belege/scan', true);
+  xhr.timeout = 120000;
+  function fertig() { scanState.laufend = false; btn.disabled = false; }
+  function manuell() {
+    fertig();
+    zeigeScanStatus('warn', 'Das Foto konnte nicht automatisch gelesen werden. Bitte Datum und Belegnummer von Hand eintragen (nicht verifiziert).');
+  }
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (xhr.status !== 200) { manuell(); return; }
+    try {
+      var data = JSON.parse(xhr.responseText);
+      scanState.token = data.scanToken;
+      scanState.datum = data.datum;
+      scanState.belegnummer = data.belegnummer;
+      if (data.datum) document.getElementById('feldDatum').value = data.datum;
+      if (data.belegnummer) document.getElementById('feldBelegnummer').value = data.belegnummer;
+      fertig();
+      if (data.lesefehler) {
+        zeigeScanStatus('warn', 'Das Foto wurde gespeichert, aber nicht gelesen. Bitte Datum und Belegnummer von Hand eintragen (nicht verifiziert).');
+      } else {
+        aktualisiereScanHinweise();
+      }
+    } catch (e) { manuell(); }
+  };
+  xhr.ontimeout = manuell;
+  xhr.send(fd);
 }
 
 // ===== Filter =====

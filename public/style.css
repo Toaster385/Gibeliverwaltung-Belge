@@ -456,3 +456,23 @@ form { padding: 20px; }
   .modal-actions .btn { flex: 1; }
 }
 .card-actions:empty { display: none; }
+
+/* ===== Beleg-Foto & automatische Erkennung ===== */
+.form-label { font-size: 14px; font-weight: 600; color: var(--text); }
+.sr-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.foto-btn { width: 100%; min-height: 56px; font-size: 17px; position: relative; }
+.foto-btn svg { width: 24px; height: 24px; }
+.foto-btn:focus-within { outline: 3px solid var(--blau-text); outline-offset: 2px; }
+.foto-hint { font-size: 13px; color: var(--text-muted); margin: 4px 0 10px; }
+.upload-area { padding: 14px; }
+
+.scan-status { margin-top: 10px; padding: 10px 14px; border-radius: var(--radius); font-size: 14px; display: flex; align-items: center; gap: 10px; border: 1px solid transparent; }
+.scan-busy { background: var(--blau-hell); color: #1F4E66; border-color: var(--blau); }
+.scan-ok { background: var(--tanne-hell); color: var(--tanne); border-color: #B7CDBE; font-weight: 600; }
+.scan-warn { background: var(--holz-hell); color: #6E4829; border-color: #DCC4AC; }
+.spinner { width: 18px; height: 18px; flex-shrink: 0; border: 3px solid rgba(45,106,137,.25); border-top-color: var(--blau-text); border-radius: 50%; animation: drehen 900ms linear infinite; }
+@keyframes drehen { to { transform: rotate(360deg); } }
+
+.field-hint { font-size: 13px; color: var(--tanne); font-weight: 600; }
+.verif-ja { background: var(--blau-hell); color: #1F4E66; }
+.verif-nein { background: #EEEBE4; color: var(--text-muted); }
