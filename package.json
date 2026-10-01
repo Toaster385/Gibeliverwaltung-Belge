@@ -6,10 +6,12 @@
   "scripts": {
     "start": "node server.js",
     "start:lan": "node lan.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "test:daten": "node test/datensicherheit.js"
   },
   "dependencies": {
     "@tesseract.js-data/deu": "^1.0.0",
+    "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^9.4.3",
     "express": "^4.18.2",

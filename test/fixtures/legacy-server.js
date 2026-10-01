@@ -5,9 +5,6 @@ const fs = require('fs');
 const Database = require('better-sqlite3');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const { scanneBeleg } = require('./scan');
-const datensicherheit = require('./datensicherheit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,45 +14,12 @@ app.set('trust proxy', 1);
 const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 const belegungDir = path.join(dataDir, 'belegung');
-const gerichteDir = path.join(dataDir, 'gerichte');
-const scanTmpDir = path.join(uploadsDir, '.scan-tmp'); // Punkt-Ordner: wird von express.static nicht ausgeliefert
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(belegungDir)) fs.mkdirSync(belegungDir, { recursive: true });
-if (!fs.existsSync(gerichteDir)) fs.mkdirSync(gerichteDir, { recursive: true });
-if (!fs.existsSync(scanTmpDir)) fs.mkdirSync(scanTmpDir, { recursive: true });
 
 // ===== Database =====
-const dbPfad = path.join(dataDir, 'belege.db');
-const dbExistierte = fs.existsSync(dbPfad) && fs.statSync(dbPfad).size > 0;
-const db = new Database(dbPfad);
-
-// ===== Datensicherheit: Sicherung VOR jeder Änderung =====
-const sicherung = datensicherheit.erstelle({ db, dataDir, uploadsDir });
-function zaehle() {
-  try {
-    return {
-      belege: db.prepare('SELECT COUNT(*) AS n FROM belege').get().n,
-      benutzer: db.prepare('SELECT COUNT(*) AS n FROM benutzer').get().n
-    };
-  } catch (e) { return { belege: 0, benutzer: 0 }; } // Tabellen existieren noch nicht (Erststart)
-}
-const vorStart = zaehle();
-if (dbExistierte) {
-  try {
-    const f = sicherung.snapshot('start');
-    console.log(`Sicherung vor dem Start: ${f} (${vorStart.belege} Belege, ${vorStart.benutzer} Benutzer)`);
-  } catch (e) {
-    // Ohne Sicherung wird nichts verändert
-    console.error('FEHLER: Sicherung vor dem Start nicht möglich – Start abgebrochen, Daten bleiben unverändert:', e.message);
-    process.exit(1);
-  }
-}
-const volume = sicherung.volumeStatus();
-if (!volume.sicher) {
-  console.error('\n!!! WARNUNG !!! Die Daten liegen NICHT auf einem Railway-Volume und gehen beim nächsten Deploy verloren.\n' +
-    '    Volume anlegen (Mount z.B. /data) und DATA_DIR=/data, UPLOADS_DIR=/data/uploads setzen. Siehe README.\n');
-}
+const db = new Database(path.join(dataDir, 'belege.db'));
 db.exec(`
   CREATE TABLE IF NOT EXISTS benutzer (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,23 +66,8 @@ const migrations = [
   `ALTER TABLE belege ADD COLUMN geschaeft TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE belege ADD COLUMN kategorie TEXT NOT NULL DEFAULT 'Sonstiges'`,
   `ALTER TABLE belege ADD COLUMN belegnummer TEXT NOT NULL DEFAULT ''`,
-  `ALTER TABLE benutzer ADD COLUMN pin TEXT`,
-  `ALTER TABLE belege ADD COLUMN verifiziert INTEGER NOT NULL DEFAULT 0`,
-  `ALTER TABLE belege ADD COLUMN auto_datum INTEGER NOT NULL DEFAULT 0`,
-  `ALTER TABLE belege ADD COLUMN auto_belegnummer INTEGER NOT NULL DEFAULT 0`,
-  `ALTER TABLE belege ADD COLUMN auto_betrag INTEGER NOT NULL DEFAULT 0`,
-  `ALTER TABLE belege ADD COLUMN auto_waehrung INTEGER NOT NULL DEFAULT 0`,
 ];
 for (const m of migrations) { try { db.exec(m); } catch (e) {} }
-
-// Notbremse: Migrationen dürfen nie Belege oder Benutzer entfernen
-{
-  const nachher = zaehle();
-  if (nachher.belege < vorStart.belege || nachher.benutzer < vorStart.benutzer) {
-    console.error(`FEHLER: Nach der Migration fehlen Daten (Belege ${vorStart.belege}→${nachher.belege}, Benutzer ${vorStart.benutzer}→${nachher.benutzer}). Start abgebrochen. Sicherung liegt in ${sicherung.ordner}`);
-    process.exit(1);
-  }
-}
 
 // Default settings
 const defaultSettings = {
@@ -133,7 +82,7 @@ for (const [k, v] of Object.entries(defaultSettings)) {
 }
 
 // Migrate old role names
-db.prepare(`UPDATE benutzer SET rolle = 'gibeli-gast' WHERE rolle NOT IN ('admin', 'gibeli-gast', 'verwaltung', 'gerichte') AND instr(rolle, ',') = 0`).run();
+db.prepare(`UPDATE benutzer SET rolle = 'gibeli-gast' WHERE rolle NOT IN ('admin', 'gibeli-gast', 'verwaltung') AND instr(rolle, ',') = 0`).run();
 
 // Ensure admin "Lio" exists
 if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Lio'").get()) {
@@ -155,7 +104,6 @@ if (!db.prepare("SELECT id FROM benutzer WHERE benutzername = 'Admin3'").get()) 
 }
 
 // ===== Helpers =====
-const ALLE_ROLLEN = ['admin', 'gibeli-gast', 'verwaltung', 'gerichte'];
 function getRollen(user) {
   return (user.rolle || '').split(',').map(r => r.trim()).filter(Boolean);
 }
@@ -224,12 +172,6 @@ function requireAdmin(req, res, next) {
   res.status(403).json({ error: 'Kein Admin-Zugriff' });
 }
 
-// Rolle "gerichte": darf die Gerichte-Tabelle hochladen/ersetzen/löschen (Admins ebenfalls)
-function requireGerichte(req, res, next) {
-  if (req.session?.benutzer && hatRolle(req.session.benutzer, 'admin', 'gerichte')) return next();
-  res.status(403).json({ error: 'Kein Zugriff' });
-}
-
 function requireVerwaltung(req, res, next) {
   if (req.session?.benutzer && hatRolle(req.session.benutzer, 'admin', 'verwaltung')) return next();
   res.status(403).json({ error: 'Kein Zugriff' });
@@ -242,7 +184,7 @@ app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'public',
 
 // ===== AUTH ROUTES =====
 app.post('/api/login', (req, res) => {
-  const { benutzername, passwort, pin } = req.body;
+  const { benutzername, passwort, geburtsdatum } = req.body;
   if (!benutzername) return res.status(400).json({ error: 'Benutzername erforderlich' });
 
   const user = db.prepare('SELECT * FROM benutzer WHERE benutzername = ?').get(benutzername);
@@ -253,10 +195,8 @@ app.post('/api/login', (req, res) => {
     if (!passwort || !bcrypt.compareSync(passwort, user.passwort))
       return res.status(401).json({ error: 'Falsches Passwort' });
   } else {
-    if (!user.pin)
-      return res.status(401).json({ error: 'Für dieses Konto ist noch kein PIN gesetzt – bitte beim Admin melden' });
-    if (!/^\d{4}$/.test(String(pin || '')) || !bcrypt.compareSync(String(pin), user.pin))
-      return res.status(401).json({ error: 'Falscher PIN' });
+    if (!geburtsdatum || geburtsdatum !== user.geburtsdatum)
+      return res.status(401).json({ error: 'Falsches Geburtsdatum' });
   }
 
   req.session.benutzer = { id: user.id, benutzername: user.benutzername, rolle: user.rolle };
@@ -286,18 +226,12 @@ app.get('/api/wechselkurs', async (req, res) => {
   try {
     const https = require('https');
     const data = await new Promise((resolve, reject) => {
-      const req = https.get('https://api.frankfurter.app/latest?from=EUR&to=CHF', r => {
+      https.get('https://api.frankfurter.app/latest?from=EUR&to=CHF', r => {
         let body = '';
         r.on('data', d => body += d);
-        r.on('end', () => {
-          try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
-        });
-        r.on('error', reject);
-      });
-      req.on('error', reject);
-      req.setTimeout(5000, () => req.destroy(new Error('Timeout')));
+        r.on('end', () => resolve(JSON.parse(body)));
+      }).on('error', reject);
     });
-    if (!data || !data.rates || !data.rates.CHF) throw new Error('Ungültige Antwort');
     res.json({ EUR_to_CHF: data.rates.CHF, CHF_to_EUR: +(1 / data.rates.CHF).toFixed(6) });
   } catch (e) {
     res.json({ EUR_to_CHF: 0.95, CHF_to_EUR: 1.053, fallback: true });
@@ -310,38 +244,26 @@ app.use('/uploads', requireLogin, express.static(uploadsDir));
 
 // ===== ADMIN: USER MANAGEMENT =====
 app.get('/api/admin/benutzer', requireAdmin, (req, res) => {
-  const users = db.prepare('SELECT id, benutzername, rolle, geburtsdatum, (pin IS NOT NULL AND pin != \'\') AS hat_pin, erstellt_am FROM benutzer ORDER BY erstellt_am DESC').all();
+  const users = db.prepare('SELECT id, benutzername, rolle, geburtsdatum, erstellt_am FROM benutzer ORDER BY erstellt_am DESC').all();
   res.json(users);
 });
 
 app.post('/api/admin/benutzer', requireAdmin, (req, res) => {
-  const { benutzername, pin, rollen } = req.body;
-  if (!benutzername || !pin)
-    return res.status(400).json({ error: 'Benutzername und PIN erforderlich' });
-  if (!/^\d{4}$/.test(String(pin)))
-    return res.status(400).json({ error: 'Der PIN muss genau 4 Ziffern haben' });
+  const { benutzername, geburtsdatum, rollen } = req.body;
+  if (!benutzername || !geburtsdatum)
+    return res.status(400).json({ error: 'Benutzername und Geburtsdatum erforderlich' });
 
   const existing = db.prepare('SELECT id FROM benutzer WHERE benutzername = ?').get(benutzername);
   if (existing) return res.status(400).json({ error: 'Benutzername bereits vergeben' });
 
   const rolleStr = Array.isArray(rollen) && rollen.length > 0
-    ? rollen.filter(r => ALLE_ROLLEN.includes(r)).join(',')
+    ? rollen.filter(r => ['admin','gibeli-gast','verwaltung'].includes(r)).join(',')
     : 'gibeli-gast';
 
   const result = db.prepare(
-    "INSERT INTO benutzer (benutzername, passwort, rolle, pin) VALUES (?, '', ?, ?)"
-  ).run(benutzername, rolleStr, bcrypt.hashSync(String(pin), 10));
+    "INSERT INTO benutzer (benutzername, passwort, rolle, geburtsdatum) VALUES (?, '', ?, ?)"
+  ).run(benutzername, rolleStr, geburtsdatum);
   res.status(201).json({ id: result.lastInsertRowid, benutzername, rolle: rolleStr });
-});
-
-app.put('/api/admin/benutzer/:id/pin', requireAdmin, (req, res) => {
-  const user = db.prepare('SELECT id FROM benutzer WHERE id = ?').get(req.params.id);
-  if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
-  const { pin } = req.body;
-  if (!/^\d{4}$/.test(String(pin || '')))
-    return res.status(400).json({ error: 'Der PIN muss genau 4 Ziffern haben' });
-  db.prepare('UPDATE benutzer SET pin = ? WHERE id = ?').run(bcrypt.hashSync(String(pin), 10), req.params.id);
-  res.json({ success: true });
 });
 
 app.put('/api/admin/benutzer/:id/rollen', requireAdmin, (req, res) => {
@@ -353,7 +275,7 @@ app.put('/api/admin/benutzer/:id/rollen', requireAdmin, (req, res) => {
   if (!Array.isArray(rollen) || rollen.length === 0)
     return res.status(400).json({ error: 'Mindestens eine Rolle erforderlich' });
 
-  const valid = ALLE_ROLLEN;
+  const valid = ['admin', 'gibeli-gast', 'verwaltung'];
   const filtered = rollen.filter(r => valid.includes(r));
   if (filtered.length === 0) return res.status(400).json({ error: 'Ungültige Rollen' });
 
@@ -403,27 +325,6 @@ app.get('/api/admin/statistiken', requireVerwaltung, (req, res) => {
     GROUP BY u.id ORDER BY summe DESC
   `).all();
   res.json({ gesamt, nachBenutzer });
-});
-
-// ===== ADMIN: DATENSICHERHEIT =====
-setInterval(() => sicherung.taeglich(), 3 * 3600 * 1000).unref();
-sicherung.taeglich();
-
-app.get('/api/admin/integritaet', requireAdmin, (req, res) => {
-  res.json(sicherung.pruefe());
-});
-
-app.post('/api/admin/backup/jetzt', requireAdmin, (req, res) => {
-  try { sicherung.snapshot('manuell'); res.json(sicherung.pruefe()); }
-  catch (e) { res.status(500).json({ error: 'Sicherung fehlgeschlagen: ' + e.message }); }
-});
-
-app.get('/api/admin/backup/download', requireAdmin, (req, res) => {
-  const name = `gibeli-backup-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.zip`;
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
-  try { sicherung.zipSchreiben(res); }
-  catch (e) { if (!res.headersSent) res.status(500).json({ error: 'Export fehlgeschlagen' }); else res.destroy(e); }
 });
 
 // ===== ADMIN: KASSE =====
@@ -531,163 +432,67 @@ const upload = multer({
   }
 });
 
-// ===== EXCEL-BEREICHE (Aktuelle Belegung, Gerichte) =====
-// Beide Bereiche funktionieren identisch: alle Angemeldeten dürfen die Tabelle ansehen,
-// hochladen/ersetzen/löschen darf nur, wer die jeweilige Schreib-Middleware besteht.
-function registriereExcelBereich({ url, dir, praefix, standardName, schreibRecht }) {
-  const setting = key => db.prepare(`SELECT wert FROM einstellungen WHERE schluessel = ?`).get(`${praefix}_${key}`);
-  const speichere = (key, wert) => db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES (?, ?)`).run(`${praefix}_${key}`, wert);
-
-  const upload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, dir),
-      filename: (req, file, cb) => {
-        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-        cb(null, unique + path.extname(file.originalname));
-      }
-    }),
-    limits: { fileSize: 20 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      if (['.xlsx', '.xls', '.ods'].includes(ext)) return cb(null, true);
-      cb(new Error('Nur Excel-Dateien (.xlsx, .xls, .ods) erlaubt'));
-    }
-  });
-
-  for (const k of ['dateiname', 'dateipfad', 'hochgeladen_am']) {
-    db.prepare(`INSERT OR IGNORE INTO einstellungen (schluessel, wert) VALUES (?, '')`).run(`${praefix}_${k}`);
+// ===== MULTER: BELEGUNG (Excel) =====
+const belegungStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, belegungDir),
+  filename: (req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, unique + path.extname(file.originalname));
   }
-
-  app.get(`${url}/datei`, requireLogin, (req, res) => {
-    const dateipfad = setting('dateipfad');
-    if (!dateipfad?.wert) return res.status(404).json({ error: 'Keine Datei vorhanden' });
-    const filePath = path.join(dir, dateipfad.wert);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
-    res.sendFile(filePath);
-  });
-
-  app.get(url, requireLogin, (req, res) => {
-    const dateiname = setting('dateiname');
-    const dateipfad = setting('dateipfad');
-    const hochgeladen = setting('hochgeladen_am');
-    if (!dateipfad?.wert) return res.json({ vorhanden: false });
-    if (!fs.existsSync(path.join(dir, dateipfad.wert))) return res.json({ vorhanden: false });
-    res.json({ vorhanden: true, dateiname: dateiname?.wert || standardName, hochgeladen_am: hochgeladen?.wert || '' });
-  });
-
-  app.post(url, schreibRecht, upload.single('datei'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' });
-    const alt = setting('dateipfad');
-    if (alt?.wert) {
-      const old = path.join(dir, alt.wert);
-      if (fs.existsSync(old)) try { fs.unlinkSync(old); } catch(e) {}
-    }
-    speichere('dateiname', req.file.originalname);
-    speichere('dateipfad', req.file.filename);
-    speichere('hochgeladen_am', new Date().toISOString());
-    res.json({ success: true, dateiname: req.file.originalname });
-  });
-
-  app.delete(url, schreibRecht, (req, res) => {
-    const dateipfad = setting('dateipfad');
-    if (dateipfad?.wert) {
-      const filePath = path.join(dir, dateipfad.wert);
-      if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch(e) {}
-    }
-    speichere('dateiname', '');
-    speichere('dateipfad', '');
-    speichere('hochgeladen_am', '');
-    res.json({ success: true });
-  });
-}
-
-registriereExcelBereich({ url: '/api/belegung', dir: belegungDir, praefix: 'belegung', standardName: 'belegung.xlsx', schreibRecht: requireVerwaltung });
-registriereExcelBereich({ url: '/api/gerichte', dir: gerichteDir, praefix: 'gerichte', standardName: 'gerichte.xlsx', schreibRecht: requireGerichte });
-
-// ===== BELEG-SCAN (OCR) =====
-// Das Foto wird einmal hochgeladen (clientseitig bereits komprimiert), serverseitig gelesen und kurz
-// zwischengespeichert. Beim Speichern des Belegs wird nur noch der scanToken mitgeschickt –
-// so muss das Bild bei langsamem Internet nicht doppelt übertragen werden.
-// "Verifiziert" wird ausschliesslich hier auf dem Server entschieden (Datum UND Belegnummer wurden
-// aus dem Foto gelesen und unverändert übernommen).
-const scans = new Map(); // token -> { userId, pfad, originalname, datum, belegnummer, ablauf }
-const SCAN_TTL = 30 * 60 * 1000;
-
-function raeumeScansAuf() {
-  const jetzt = Date.now();
-  for (const [token, e] of scans) {
-    if (e.ablauf < jetzt) { try { fs.unlinkSync(e.pfad); } catch (err) {} scans.delete(token); }
-  }
-  // Verwaiste Dateien (z.B. nach Neustart) nach 2 Stunden entfernen
-  try {
-    for (const f of fs.readdirSync(scanTmpDir)) {
-      const fp = path.join(scanTmpDir, f);
-      if (jetzt - fs.statSync(fp).mtimeMs > 2 * 3600 * 1000) fs.unlinkSync(fp);
-    }
-  } catch (err) {}
-}
-raeumeScansAuf();
-setInterval(raeumeScansAuf, 10 * 60 * 1000).unref();
-
-const scanUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, scanTmpDir),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname).toLowerCase() || '.jpg'}`)
-  }),
-  limits: { fileSize: 10 * 1024 * 1024 },
+});
+const uploadBelegung = multer({
+  storage: belegungStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (/\.(jpe?g|png|webp)$/i.test(file.originalname) && /^image\/(jpeg|png|webp)$/.test(file.mimetype)) return cb(null, true);
-    cb(new Error('Nur Fotos (JPG, PNG, WebP) können gelesen werden'));
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.xlsx', '.xls', '.ods'].includes(ext)) return cb(null, true);
+    cb(new Error('Nur Excel-Dateien (.xlsx, .xls, .ods) erlaubt'));
   }
 });
 
-app.post('/api/belege/scan', requireLogin, scanUpload.single('datei'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Kein Foto hochgeladen' });
-  const token = crypto.randomBytes(16).toString('hex');
-  let erkannt = { datum: null, belegnummer: null };
-  let lesefehler = null, text = '';
-  try {
-    erkannt = await scanneBeleg(req.file.path);
-    text = erkannt.text || '';
-    console.log(`Scan: ${req.file.size} Bytes, ${text.length} Zeichen, Datum=${erkannt.datum}, Nr=${erkannt.belegnummer}`);
-  } catch (e) {
-    lesefehler = e.message === 'ausgelastet' ? 'ausgelastet' : 'fehlgeschlagen';
-    text = 'Fehler: ' + e.message;
-    console.error('Scan-Fehler:', e);
-  }
-  scans.set(token, {
-    userId: req.session.benutzer.id, pfad: req.file.path, originalname: req.file.originalname,
-    datum: erkannt.datum, belegnummer: erkannt.belegnummer, betrag: erkannt.betrag, waehrung: erkannt.waehrung,
-    ablauf: Date.now() + SCAN_TTL
-  });
-  res.json({ scanToken: token, datum: erkannt.datum, belegnummer: erkannt.belegnummer,
-    betrag: erkannt.betrag, waehrung: erkannt.waehrung, lesefehler, text: text.slice(0, 1500) });
+// ===== BELEGUNG ROUTES =====
+app.get('/api/belegung/datei', requireLogin, (req, res) => {
+  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
+  if (!dateipfad?.wert) return res.status(404).json({ error: 'Keine Datei vorhanden' });
+  const filePath = path.join(belegungDir, dateipfad.wert);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
+  res.sendFile(filePath);
 });
 
-// Gibt den zwischengespeicherten Scan frei und verschiebt die Datei in den Upload-Ordner.
-function nimmScan(token, userId) {
-  const e = token && scans.get(String(token));
-  if (!e || e.userId !== userId || e.ablauf < Date.now() || !fs.existsSync(e.pfad)) return null;
-  scans.delete(String(token));
-  const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(e.pfad)}`;
-  fs.renameSync(e.pfad, path.join(uploadsDir, name));
-  return { filename: name, originalname: e.originalname, datum: e.datum, belegnummer: e.belegnummer, betrag: e.betrag, waehrung: e.waehrung };
-}
+app.get('/api/belegung', requireLogin, (req, res) => {
+  const dateiname = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateiname'`).get();
+  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
+  const hochgeladen = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_hochgeladen_am'`).get();
+  if (!dateipfad?.wert) return res.json({ vorhanden: false });
+  const filePath = path.join(belegungDir, dateipfad.wert);
+  if (!fs.existsSync(filePath)) return res.json({ vorhanden: false });
+  res.json({ vorhanden: true, dateiname: dateiname?.wert || 'belegung.xlsx', hochgeladen_am: hochgeladen?.wert || '' });
+});
 
-function istVerifiziert(scan, datum, belegnummer) {
-  return !!(scan && scan.datum && scan.belegnummer && scan.datum === datum && scan.belegnummer === belegnummer);
-}
+app.post('/api/belegung', requireVerwaltung, uploadBelegung.single('datei'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' });
+  const oldPath = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
+  if (oldPath?.wert) {
+    const old = path.join(belegungDir, oldPath.wert);
+    if (fs.existsSync(old)) try { fs.unlinkSync(old); } catch(e) {}
+  }
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateiname', ?)`).run(req.file.originalname);
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateipfad', ?)`).run(req.file.filename);
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_hochgeladen_am', ?)`).run(new Date().toISOString());
+  res.json({ success: true, dateiname: req.file.originalname });
+});
 
-// Welche Felder stammen unverändert aus dem Foto? (für die Kennzeichnung bei den Admins)
-function autoFelder(scan, werte) {
-  const gleich = (a, b) => a !== null && a !== undefined && a === b;
-  return {
-    auto_datum: scan && gleich(scan.datum, werte.datum) ? 1 : 0,
-    auto_belegnummer: scan && gleich(scan.belegnummer, werte.belegnummer) ? 1 : 0,
-    auto_betrag: scan && scan.betrag != null && Math.abs(scan.betrag - werte.betrag) < 0.005 ? 1 : 0,
-    auto_waehrung: scan && gleich(scan.waehrung, werte.waehrung) ? 1 : 0
-  };
-}
+app.delete('/api/belegung', requireVerwaltung, (req, res) => {
+  const dateipfad = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='belegung_dateipfad'`).get();
+  if (dateipfad?.wert) {
+    const filePath = path.join(belegungDir, dateipfad.wert);
+    if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch(e) {}
+  }
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateiname', '')`).run();
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_dateipfad', '')`).run();
+  db.prepare(`INSERT OR REPLACE INTO einstellungen (schluessel, wert) VALUES ('belegung_hochgeladen_am', '')`).run();
+  res.json({ success: true });
+});
 
 // ===== BELEGE ROUTES =====
 app.get('/api/belege', requireLogin, (req, res) => {
@@ -721,32 +526,21 @@ app.post('/api/belege', requireLogin, upload.single('datei'), (req, res) => {
       return res.status(403).json({ error: 'Die Kasse ist geschlossen – keine Änderungen möglich' });
     }
   }
-  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer, scanToken } = req.body;
-  // Datei: entweder normal hochgeladen (manuell, nie verifiziert) oder aus einem vorherigen Scan
-  const scan = !req.file ? nimmScan(scanToken, req.session.benutzer.id) : null;
-  const datei = req.file ? { filename: req.file.filename, originalname: req.file.originalname } : scan;
-  if (!datum || betrag === undefined || !datei) {
-    if (scan) try { fs.unlinkSync(path.join(uploadsDir, scan.filename)); } catch (e) {}
+  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer } = req.body;
+  if (!datum || betrag === undefined || !req.file)
     return res.status(400).json({ error: 'Datum, Betrag und Datei sind Pflichtfelder' });
-  }
   if (!belegnummer || !/^\d{3}$/.test(belegnummer.trim())) {
     if (req.file) fs.unlinkSync(req.file.path);
-    if (scan) try { fs.unlinkSync(path.join(uploadsDir, scan.filename)); } catch (e) {}
     return res.status(400).json({ error: 'Bitte die letzten 3 Ziffern der Belegnummer angeben' });
   }
 
-  const waehrungNeu = waehrung === 'CHF' ? 'CHF' : 'EUR';
-  const af = autoFelder(scan, { datum, belegnummer: belegnummer.trim(), betrag: parseFloat(betrag), waehrung: waehrungNeu });
   const result = db.prepare(`
-    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung, belegnummer, verifiziert,
-                        auto_datum, auto_belegnummer, auto_betrag, auto_waehrung)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO belege (benutzer_id, datum, geschaeft, betrag, notiz, dateiname, dateipfad, waehrung, belegnummer)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     req.session.benutzer.id, datum, geschaeft || '', parseFloat(betrag),
-    notiz || null, datei.originalname, datei.filename,
-    waehrung === 'CHF' ? 'CHF' : 'EUR', belegnummer.trim(),
-    istVerifiziert(scan, datum, belegnummer.trim()) ? 1 : 0,
-    af.auto_datum, af.auto_belegnummer, af.auto_betrag, af.auto_waehrung
+    notiz || null, req.file.originalname, req.file.filename,
+    waehrung === 'CHF' ? 'CHF' : 'EUR', belegnummer.trim()
   );
   res.status(201).json(db.prepare('SELECT * FROM belege WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -768,37 +562,18 @@ app.put('/api/belege/:id', requireLogin, upload.single('datei'), (req, res) => {
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: 'Eingetragene Belege können nicht mehr bearbeitet werden' });
   }
-  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer, scanToken } = req.body;
+  const { datum, geschaeft, betrag, notiz, waehrung, belegnummer } = req.body;
   let dateipfad = existing.dateipfad, dateiname = existing.dateiname;
-  const neuDatum = datum || existing.datum;
-  const neuNummer = belegnummer !== undefined ? belegnummer.trim() : existing.belegnummer;
-  // Verifiziert bleibt nur, wenn Datum und Belegnummer unverändert sind (oder aus neuem Scan stammen)
-  let verifiziert = existing.verifiziert && neuDatum === existing.datum && neuNummer === existing.belegnummer ? 1 : 0;
-  const neuBetrag = betrag !== undefined ? parseFloat(betrag) : existing.betrag;
-  const neuWaehrung = waehrung || existing.waehrung;
-  // Automatisch gelesene Felder bleiben nur markiert, solange der Wert unverändert ist
-  let af = {
-    auto_datum: existing.auto_datum && neuDatum === existing.datum ? 1 : 0,
-    auto_belegnummer: existing.auto_belegnummer && neuNummer === existing.belegnummer ? 1 : 0,
-    auto_betrag: existing.auto_betrag && Math.abs(neuBetrag - existing.betrag) < 0.005 ? 1 : 0,
-    auto_waehrung: existing.auto_waehrung && neuWaehrung === existing.waehrung ? 1 : 0
-  };
-  const scan = !req.file ? nimmScan(scanToken, req.session.benutzer.id) : null;
-  if (req.file || scan) {
+  if (req.file) {
     if (existing.dateipfad) { const old = path.join(uploadsDir, existing.dateipfad); if (fs.existsSync(old)) fs.unlinkSync(old); }
-    dateipfad = req.file ? req.file.filename : scan.filename;
-    dateiname = req.file ? req.file.originalname : scan.originalname;
-    verifiziert = istVerifiziert(scan, neuDatum, neuNummer) ? 1 : 0;
-    af = autoFelder(scan, { datum: neuDatum, belegnummer: neuNummer, betrag: neuBetrag, waehrung: neuWaehrung });
+    dateipfad = req.file.filename; dateiname = req.file.originalname;
   }
-  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=?,belegnummer=?,verifiziert=?,
-              auto_datum=?,auto_belegnummer=?,auto_betrag=?,auto_waehrung=? WHERE id=?`)
-    .run(neuDatum, geschaeft!==undefined?geschaeft:existing.geschaeft,
-      neuBetrag,
+  db.prepare(`UPDATE belege SET datum=?,geschaeft=?,betrag=?,notiz=?,dateiname=?,dateipfad=?,waehrung=?,belegnummer=? WHERE id=?`)
+    .run(datum||existing.datum, geschaeft!==undefined?geschaeft:existing.geschaeft,
+      betrag!==undefined?parseFloat(betrag):existing.betrag,
       notiz!==undefined?notiz:existing.notiz,
-      dateiname, dateipfad, neuWaehrung,
-      neuNummer, verifiziert,
-      af.auto_datum, af.auto_belegnummer, af.auto_betrag, af.auto_waehrung,
+      dateiname, dateipfad, waehrung||existing.waehrung,
+      belegnummer!==undefined?belegnummer.trim():existing.belegnummer,
       req.params.id);
   res.json(db.prepare('SELECT * FROM belege WHERE id = ?').get(req.params.id));
 });
@@ -834,28 +609,8 @@ app.get('/api/statistiken', requireLogin, (req, res) => {
            SUM(CASE WHEN waehrung='CHF' THEN betrag ELSE 0 END) as gesamt_chf
     FROM belege ${where ? where + ' AND' : 'WHERE'} strftime('%Y-%m', datum) = strftime('%Y-%m', 'now')
   `).get(...args);
-  // Aktive Periode (Abrechnungszeitraum) – gleiche Sichtbarkeit wie oben (Gäste nur eigene Belege)
-  let periode = null;
-  const aktiv = db.prepare(`SELECT wert FROM einstellungen WHERE schluessel='aktive_periode'`).get();
-  const aktivId = parseInt(aktiv?.wert || '0');
-  const p = aktivId ? db.prepare('SELECT * FROM perioden WHERE id = ?').get(aktivId) : null;
-  if (p) {
-    const stats = db.prepare(`
-      SELECT COUNT(*) as anzahl,
-             SUM(CASE WHEN waehrung='EUR' THEN betrag ELSE 0 END) as gesamt_eur,
-             SUM(CASE WHEN waehrung='CHF' THEN betrag ELSE 0 END) as gesamt_chf
-      FROM belege ${where ? where + ' AND' : 'WHERE'} datum >= ? AND datum <= ?
-    `).get(...args, p.von, p.bis);
-    periode = { name: p.name, von: p.von, bis: p.bis, ...stats };
-  }
-  res.json({ gesamt: total, dieserMonat: thisMonth, periode });
+  res.json({ gesamt: total, dieserMonat: thisMonth });
 });
-
-{
-  const p = sicherung.pruefe();
-  if (!p.datenbankOk) console.error('WARNUNG: Datenbank-Integritätsprüfung:', p.integritaet);
-  if (p.fehlendeDateien.length) console.error(`WARNUNG: Für ${p.fehlendeDateien.length} Belege fehlt die Datei im Upload-Ordner (IDs: ${p.fehlendeDateien.slice(0, 20).join(', ')})`);
-}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Belegverwaltung läuft auf http://localhost:${PORT}`);

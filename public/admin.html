@@ -44,6 +44,11 @@
     .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
     .badge-eingetragen, .badge-aktiv { background: var(--tanne-hell); color: var(--tanne); }
     .badge-ausstehend { background: var(--holz-hell); color: #6E4829; }
+    .sicherheit-liste { list-style: none; margin: 0 0 14px; display: grid; gap: 6px; font-size: 15px; }
+    .sicherheit-liste li { display: flex; gap: 8px; align-items: baseline; }
+    .sicherheit-liste .ok::before { content: '✓'; color: var(--tanne); font-weight: 700; }
+    .sicherheit-liste .bad::before { content: '✗'; color: var(--rot-dunkel); font-weight: 700; }
+    .sicherheit-aktionen { display: flex; gap: 10px; flex-wrap: wrap; }
     .chip-auto { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--blau-hell); color: #1F4E66; border: 1px solid var(--blau); white-space: nowrap; vertical-align: middle; }
     .auto-legende { font-size: 13px; margin: -6px 0 12px; }
     .badge-verif { background: var(--blau-hell); color: #1F4E66; }
@@ -144,6 +149,18 @@
       </header>
       <div class="berge-banner" aria-hidden="true"></div>
       <div class="admin-wrapper">
+
+      <!-- 0. Datensicherheit -->
+      <div class="card" id="cardSicherheit">
+        <h2>Datensicherheit</h2>
+        <div id="sicherheitWarnung" class="error-msg hidden" role="alert"></div>
+        <ul id="sicherheitListe" class="sicherheit-liste"><li>Wird geprüft …</li></ul>
+        <div class="sicherheit-aktionen">
+          <button class="btn-add" id="btnBackupJetzt" type="button">Jetzt Sicherung anlegen</button>
+          <a class="btn-section-toggle" id="btnBackupDownload" href="/api/admin/backup/download" style="text-decoration:none;display:inline-flex;align-items:center;">Alles herunterladen (ZIP)</a>
+        </div>
+        <p style="font-size:13px;margin-top:10px;">Beim Start und täglich wird automatisch eine Sicherung der Datenbank angelegt. Das ZIP enthält zusätzlich alle Belegfotos – bitte gelegentlich auf deinem Computer speichern.</p>
+      </div>
 
       <!-- 1. Übersicht -->
       <div class="card">
@@ -336,11 +353,62 @@
     function showAdminPanel() {
       document.getElementById('loginSection').classList.remove('active');
       document.getElementById('mainSection').classList.add('active');
+      ladeSicherheit();
       ladeStats();
       ladeKasse();
       ladePerioden();
       ladeBelege();
     }
+
+    // ===== Datensicherheit =====
+    function ladeSicherheit() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/admin/integritaet', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        try { zeigeSicherheit(JSON.parse(xhr.responseText)); }
+        catch(e) { document.getElementById('sicherheitListe').innerHTML = '<li class="bad">Prüfung nicht möglich</li>'; }
+      };
+      xhr.send();
+    }
+
+    function zeigeSicherheit(p) {
+      var zeile = function(ok, text) { return '<li class="' + (ok ? 'ok' : 'bad') + '"><span>' + text + '</span></li>'; };
+      var letzte = p.letzteSicherung ? new Date(p.letzteSicherung).toLocaleString('de-DE') : 'noch keine';
+      var html =
+        zeile(p.datenbankOk, 'Datenbank in Ordnung (' + p.anzahlBelege + ' Belege gespeichert)') +
+        zeile(p.fehlendeDateien.length === 0, p.fehlendeDateien.length === 0
+          ? 'Alle ' + p.anzahlMitDatei + ' Belegfotos sind vorhanden'
+          : p.fehlendeDateien.length + ' Belegfoto(s) fehlen (Beleg-IDs: ' + p.fehlendeDateien.slice(0, 10).join(', ') + ')') +
+        zeile(!!p.letzteSicherung, 'Letzte automatische Sicherung: ' + letzte + ' (' + p.anzahlSicherungen + ' vorhanden)');
+      if (p.volume.aufRailway) {
+        html += zeile(p.volume.sicher, p.volume.sicher
+          ? 'Daten liegen auf einem dauerhaften Railway-Volume (' + esc(p.volume.volume || '') + ')'
+          : 'Daten liegen NICHT auf einem Railway-Volume');
+      }
+      document.getElementById('sicherheitListe').innerHTML = html;
+      var w = document.getElementById('sicherheitWarnung');
+      if (p.volume.aufRailway && !p.volume.sicher) {
+        w.textContent = 'ACHTUNG: Die Daten werden bei jedem Deploy gelöscht! In Railway ein Volume anlegen (Mount-Pfad /data) und die Variablen DATA_DIR=/data und UPLOADS_DIR=/data/uploads setzen. Bis dahin bitte regelmässig das ZIP herunterladen.';
+        w.classList.remove('hidden');
+      } else if (!p.datenbankOk || p.fehlendeDateien.length) {
+        w.textContent = 'Es gibt ein Problem mit den gespeicherten Daten – bitte sofort das ZIP herunterladen und melden.';
+        w.classList.remove('hidden');
+      } else { w.classList.add('hidden'); }
+    }
+
+    document.getElementById('btnBackupJetzt').addEventListener('click', function() {
+      var btn = this; btn.disabled = true; btn.textContent = 'Sichere …';
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/backup/jetzt', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        btn.disabled = false; btn.textContent = 'Jetzt Sicherung anlegen';
+        if (xhr.status === 200) { try { zeigeSicherheit(JSON.parse(xhr.responseText)); } catch(e) {} }
+        else alert('Sicherung fehlgeschlagen');
+      };
+      xhr.send();
+    });
 
     function toggleSection(name) {
       var el = document.getElementById('section-' + name);
