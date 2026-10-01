@@ -154,6 +154,28 @@ function beleg(felder, dateien = {}) {
   const bad = new FormData(); bad.append('datei', new Blob(['x']), 'text.txt');
   r = await api(admin, 'POST', '/api/gerichte', null, bad); ok(r.status === 400 && r.json && r.json.error, 'Falscher Dateityp: Fehler als JSON (keine HTML-Seite)');
 
+  console.log('Belegungsliste (Name, Personen, Von, Bis, Zimmer)');
+  r = await api(anna, 'GET', '/api/belegung/liste'); ok(r.status === 200 && r.json.eintraege.length === 0 && !r.json.kannSchreiben, 'Gast sieht die (leere) Liste, ohne Schreibrecht');
+  r = await api(anna, 'POST', '/api/belegung/liste', { name: 'X', von: '2026-04-01', bis: '2026-04-02' }); ok(r.status === 403, 'Gast darf keinen Eintrag anlegen');
+  r = await api(vera, 'POST', '/api/belegung/liste', { name: 'Gruppe A', personen: 6, von: '2026-04-01', bis: '2026-04-05', zimmer: 'Zimmer 1' }); ok(r.status === 201, 'Verwaltung legt Eintrag an');
+  const eid = r.json.id;
+  r = await api(vera, 'POST', '/api/belegung/liste', { name: 'Falsch', von: '2026-04-05', bis: '2026-04-01' }); ok(r.status === 400, '„Bis“ vor „Von“ wird abgelehnt');
+  r = await api(vera, 'POST', '/api/belegung/liste', { name: 'Falsch', von: '2026-13-45', bis: '2026-04-01' }); ok(r.status === 400, 'Ungültiges Datum wird abgelehnt');
+  r = await api(vera, 'POST', '/api/belegung/liste', { name: '', von: '2026-04-01', bis: '2026-04-02' }); ok(r.status === 400, 'Name ist Pflicht');
+  r = await api(vera, 'PUT', '/api/belegung/liste/' + eid, { name: 'Gruppe A', personen: 7, von: '2026-04-01', bis: '2026-04-06', zimmer: 'Zimmer 1' }); ok(r.status === 200, 'Eintrag ändern');
+  r = await api(vera, 'POST', '/api/belegung/liste/import', { datei: 'test.xlsx', eintraege: [
+    { name: 'B', personen: 2, von: '2026-05-01', bis: '2026-05-03', zimmer: 'Zimmer 2' }, { name: 'C', personen: null, von: '2026-05-02', bis: '2026-05-04', zimmer: '' }] });
+  ok(r.status === 200 && r.json.anzahl === 2, 'Import ersetzt die Liste');
+  r = await api(vera, 'GET', '/api/belegung/liste');
+  ok(r.json.eintraege.length === 2 && r.json.staende.length === 1 && r.json.staende[0].anzahl === 1, 'Vorheriger Stand wurde gesichert');
+  const stand = r.json.staende[0].id;
+  r = await api(anna, 'POST', '/api/belegung/liste/import', { eintraege: [{ name: 'X', von: '2026-04-01', bis: '2026-04-02' }] }); ok(r.status === 403, 'Gast darf nicht importieren');
+  r = await api(vera, 'POST', '/api/belegung/liste/import', { eintraege: [{ name: 'X', von: 'kaputt', bis: '2026-04-02' }] }); ok(r.status === 400, 'Import mit ungültigem Eintrag wird komplett abgelehnt');
+  r = await api(vera, 'GET', '/api/belegung/liste'); ok(r.json.eintraege.length === 2, 'Abgelehnter Import lässt die Liste unverändert');
+  r = await api(vera, 'POST', `/api/belegung/liste/staende/${stand}/wiederherstellen`); ok(r.status === 200 && r.json.anzahl === 1, 'Früheren Stand wiederherstellen');
+  r = await api(vera, 'GET', '/api/belegung/liste'); ok(r.json.eintraege.length === 1 && r.json.eintraege[0].name === 'Gruppe A' && r.json.eintraege[0].personen === 7, 'Wiederhergestellte Liste stimmt (inkl. Änderung)');
+  r = await api(vera, 'DELETE', '/api/belegung/liste/' + r.json.eintraege[0].id); ok(r.status === 200, 'Eintrag löschen');
+
   console.log('Export & Protokoll');
   r = await api(anna, 'GET', '/api/export/belege.csv'); ok(r.status === 403, 'Export nur für Verwaltung/Admin');
   r = await api(vera, 'GET', '/api/export/belege.csv?von=2026-09-01&bis=2026-09-30&dezimal=komma');
@@ -162,7 +184,7 @@ function beleg(felder, dateien = {}) {
   r = await api(vera, 'GET', '/api/admin/protokoll'); ok(r.status === 403, 'Protokoll nur für Admins');
   r = await api(admin, 'GET', '/api/admin/protokoll?limit=500');
   const akt = r.json.eintraege.map(e => e.aktion);
-  ok(['beleg_erstellt', 'beleg_geaendert', 'beleg_geloescht', 'beleg_wiederhergestellt', 'beleg_endgueltig_geloescht', 'benutzer_geloescht', 'export', 'login_gesperrt'].every(a => akt.includes(a)), 'Protokoll enthält alle wichtigen Aktionen: ' + [...new Set(akt)].join(', '));
+  ok(['belegung_import', 'belegung_eintrag_neu', 'beleg_erstellt', 'beleg_geaendert', 'beleg_geloescht', 'beleg_wiederhergestellt', 'beleg_endgueltig_geloescht', 'benutzer_geloescht', 'export', 'login_gesperrt'].every(a => akt.includes(a)), 'Protokoll enthält alle wichtigen Aktionen: ' + [...new Set(akt)].join(', '));
 
   console.log('Neustart: nichts geht verloren');
   srv.p.kill(); await new Promise(r => setTimeout(r, 600));

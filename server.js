@@ -42,6 +42,8 @@ app.get('/login.css', pub('login.css'));
 app.get('/admin.html', pub('admin.html'));
 app.get('/excel-ansicht.js', pub('excel-ansicht.js'));
 app.get('/excel-ansicht.css', pub('excel-ansicht.css'));
+app.get('/belegung-liste.js', pub('belegung-liste.js'));
+app.get('/belegung-liste.css', pub('belegung-liste.css'));
 app.get('/manifest.webmanifest', (req, res) => { res.type('application/manifest+json'); pub('manifest.webmanifest')(req, res); });
 app.use('/fonts', express.static(path.join(dirs.publicDir, 'fonts'), { maxAge: '30d', immutable: true }));
 app.use('/icons', express.static(path.join(dirs.publicDir, 'icons'), { maxAge: '7d' }));
@@ -72,6 +74,7 @@ require('./routes/auth')(app);
 app.use(requireLogin, express.static(dirs.publicDir)); // geschützte Oberfläche (index.html, app.js, …)
 require('./routes/benutzer')(app);
 require('./routes/belege')(app);
+require('./routes/belegungsliste')(app); // vor excel.js: /api/belegung/liste darf nicht von /api/belegung/... verdeckt werden
 require('./routes/excel')(app);
 require('./routes/admin')(app);
 

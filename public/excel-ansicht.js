@@ -8,6 +8,9 @@
   var MAX_ZEILEN = 2000;
   var BERG = '<svg viewBox="0 0 120 72" width="96" height="58" aria-hidden="true"><path d="M0 72L30 24l14 18 16-30 22 36 10-12 28 36z" fill="#6FA3BF"/><path d="M60 12L50 30l6-3 4 5 5-4 6 3z" fill="#fff"/><path d="M0 72L22 44l12 14 14-20 18 34z" fill="#2F4A3A"/></svg>';
 
+  function norm(s) {
+    return String(s == null ? '' : s).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]/g, '');
+  }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function zeit(iso) {
     if (!iso) return '';
@@ -162,6 +165,8 @@
       '<div class="xl-modal" role="dialog" aria-modal="true" aria-labelledby="xl-' + cfg.key + '-titel">' +
         '<div class="xl-kopf"><h2 id="xl-' + cfg.key + '-titel">' + esc(cfg.titel) + '</h2>' +
           '<button type="button" class="xl-schliessen" aria-label="Schliessen">&times;</button></div>' +
+        (cfg.ansichten ? '<div class="xl-ansichten" role="tablist"></div><div class="xl-extra"></div>' : '') +
+        '<div class="xl-excel">' +
         '<div class="xl-leiste" hidden>' +
           '<div class="xl-info"></div>' +
           '<div class="xl-werkzeuge">' +
@@ -181,6 +186,7 @@
           '<div class="xl-meldung" role="status" style="display:none"></div>' +
           '<div class="xl-versionen"></div>' +
         '</div>' +
+        '</div>' +
       '</div>';
     cfg.mount.appendChild(el);
     var b = { cfg: cfg, el: el, wb: null, blatt: 0, info: null };
@@ -194,13 +200,32 @@
     });
     q('.xl-suche').addEventListener('input', function() { filtere(b); });
     bereiche[cfg.key] = b;
+    if (cfg.ansichten) {
+      b.ansichten = cfg.ansichten.concat([{ id: 'excel', titel: 'Excel-Datei' }]);
+      var leiste = q('.xl-ansichten');
+      leiste.innerHTML = b.ansichten.map(function(a) { return '<button type="button" role="tab" class="xl-tab" data-a="' + a.id + '">' + esc(a.titel) + '</button>'; }).join('');
+      leiste.querySelectorAll('.xl-tab').forEach(function(t) { t.addEventListener('click', function() { zeigeAnsicht(b, t.dataset.a); }); });
+    }
+  }
+
+  function zeigeAnsicht(b, id) {
+    var el = b.el, q = function(s) { return el.querySelector(s); };
+    b.ansicht = id;
+    el.querySelectorAll('.xl-ansichten .xl-tab').forEach(function(t) { t.setAttribute('aria-selected', String(t.dataset.a === id)); });
+    var excel = id === 'excel';
+    q('.xl-excel').style.display = excel ? 'contents' : 'none';
+    var extra = q('.xl-extra'); extra.style.display = excel ? 'none' : '';
+    if (excel) { lade(b); return; }
+    var a = b.ansichten.filter(function(x) { return x.id === id; })[0];
+    extra.innerHTML = '';
+    if (a && a.render) a.render(extra, { toast: toast, neuLaden: function() { zeigeAnsicht(b, id); } });
   }
 
   function oeffne(key) {
     var b = bereiche[key]; if (!b) return;
     b.el.classList.add('active');
     b.el.querySelector('.xl-suche').value = '';
-    lade(b);
+    if (b.ansichten) zeigeAnsicht(b, b.ansicht && b.ansicht !== 'excel' ? b.ansicht : b.ansichten[0].id); else lade(b);
     setTimeout(function() { b.el.querySelector('.xl-schliessen').focus(); }, 50);
   }
   function schliesse(key) { var b = bereiche[key]; if (b) b.el.classList.remove('active'); }
@@ -224,7 +249,6 @@
         (info.hochgeladen_am ? 'Hochgeladen ' + esc(zeit(info.hochgeladen_am)) + (info.hochgeladen_von ? ' von ' + esc(info.hochgeladen_von) : '') : '');
       var dl = q('.xl-download'); dl.href = b.cfg.api + '/datei?download=1'; dl.setAttribute('download', info.dateiname || '');
       ladeDatei(b);
-      zeigeSpaltenZuordnung(b);
     });
   }
 
@@ -326,281 +350,11 @@
     });
   }
 
-  // =====================================================================
-  // Übersicht "Wer ist im Gibeli?" – wird aus der Belegungs-Tabelle gelesen
-  // Erwartet eine Liste mit einer Zeile pro Aufenthalt (Anreise- und Abreise-Datum, optional Name und Personenzahl).
-  // Die Spalten werden an den Kopfzeilen erkannt ("Anreise", "Abreise", "Von", "Bis", "Name", "Personen" …)
-  // oder von Verwaltung/Admin manuell zugeordnet.
-  // =====================================================================
-  var SYN = {
-    von: ['anreise', 'ankunft', 'checkin', 'von', 'beginn', 'start', 'anreisedatum', 'vondatum', 'anreisetag'],
-    bis: ['abreise', 'abfahrt', 'checkout', 'bis', 'ende', 'abreisedatum', 'bisdatum', 'abreisetag'],
-    personen: ['personen', 'pers', 'anzahlpersonen', 'anzahl', 'teilnehmer', 'tn', 'koepfe', 'schlafplaetze', 'betten', 'gaesteanzahl', 'anzpers'],
-    name: ['name', 'gast', 'gaeste', 'gruppe', 'verein', 'mieter', 'belegung', 'bezeichnung', 'familie', 'kontakt', 'wer', 'anlass', 'reservation', 'reserviert', 'mietername']
-  };
-  function norm(s) {
-    return String(s == null ? '' : s).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]/g, '');
-  }
-  function rolleDerKopfzeile(text, mapping) {
-    var n = norm(text);
-    if (!n) return null;
-    if (mapping) for (var k in mapping) if (mapping[k] && norm(mapping[k]) === n) return k;
-    if (mapping && (mapping.von || mapping.bis || mapping.name || mapping.personen)) {
-      // Rollen, die manuell zugeordnet wurden, nicht automatisch an andere Spalten vergeben
-      var frei = ['von', 'bis', 'personen', 'name'].filter(function(r) { return !mapping[r]; });
-      return autoRolle(n, frei);
-    }
-    return autoRolle(n, ['von', 'bis', 'personen', 'name']);
-  }
-  function autoRolle(n, rollen) {
-    for (var i = 0; i < rollen.length; i++) {
-      var liste = SYN[rollen[i]];
-      for (var j = 0; j < liste.length; j++) {
-        var syn = liste[j];
-        if (n === syn || (syn.length >= 5 && n.indexOf(syn) >= 0)) return rollen[i];
-      }
-    }
-    return null;
-  }
-  function tagGenau(y, m, d) { return new Date(y, m, d, 0, 0, 0, 0); }
-  function zelleAlsDatum(c, vermutlichDatum) {
-    if (!c) return null;
-    var X = window.XLSX;
-    if (c.t === 'n' && ((c.z && X.SSF.is_date(c.z)) || (vermutlichDatum && c.v > 30000 && c.v < 80000))) {
-      var p = X.SSF.parse_date_code(c.v);
-      return p ? tagGenau(p.y, p.m - 1, p.d) : null;
-    }
-    if (c.t === 'd' && c.v instanceof Date) return tagGenau(c.v.getFullYear(), c.v.getMonth(), c.v.getDate());
-    var t = String(c.w != null ? c.w : (c.v == null ? '' : c.v));
-    var m = t.match(/(\d{1,2})\s?[.\/]\s?(\d{1,2})\s?[.\/]\s?(\d{4}|\d{2})(?!\d)/);
-    if (m) { var y = +m[3]; if (y < 100) y += 2000; return tagGenau(y, +m[2] - 1, +m[1]); }
-    m = t.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return tagGenau(+m[1], +m[2] - 1, +m[3]);
-    return null;
-  }
-  function zelleAlsZahl(c) {
-    if (!c) return null;
-    if (c.t === 'n') return Math.round(c.v);
-    var m = String(c.w != null ? c.w : (c.v == null ? '' : c.v)).match(/\d+/);
-    return m ? parseInt(m[0]) : null;
-  }
-  function zelleText(c) { return c ? String(c.w != null ? c.w : (c.v == null ? '' : c.v)).trim() : ''; }
-
-  // Liefert { eintraege: [...], kopf: [Spaltennamen], erkannt: bool } für ein Blatt
-  function blattAuswerten(ws, mapping) {
-    var X = window.XLSX, res = { eintraege: [], kopf: [], erkannt: false };
-    if (!ws || !ws['!ref']) return res;
-    var r = X.utils.decode_range(ws['!ref']);
-    var letzte = Math.min(r.e.r, r.s.r + 3000);
-    function zelle(R, C) { return ws[X.utils.encode_cell({ r: R, c: C })]; }
-    // 1) Kopfzeile suchen
-    var kopfZeile = -1, rollen = {};
-    for (var R = r.s.r; R <= Math.min(letzte, r.s.r + 25); R++) {
-      var spalten = {}, treffer = 0, texte = [];
-      for (var C = r.s.c; C <= r.e.c; C++) {
-        var c = zelle(R, C), t = zelleText(c);
-        if (t) texte.push(t);
-        var rolle = c && c.t !== 'n' ? rolleDerKopfzeile(t, mapping) : null;
-        if (rolle && spalten[rolle] === undefined) { spalten[rolle] = C; treffer++; }
-      }
-      if (spalten.von !== undefined && spalten.bis !== undefined) { kopfZeile = R; rollen = spalten; res.kopf = texte; break; }
-      if (!res.kopf.length && texte.length >= 2) res.kopf = texte;
-    }
-    var start;
-    if (kopfZeile >= 0) {
-      start = kopfZeile + 1;
-      res.erkannt = true;
-      // Kopfnamen für die Zuordnung (alle Texte der Kopfzeile)
-      res.kopf = [];
-      for (var C2 = r.s.c; C2 <= r.e.c; C2++) { var tt = zelleText(zelle(kopfZeile, C2)); if (tt) res.kopf.push(tt); }
-    } else {
-      // 2) Ohne erkennbare Kopfzeile: erste Zeile mit zwei Datumswerten -> Spalten nach Reihenfolge
-      for (var R2 = r.s.r; R2 <= Math.min(letzte, r.s.r + 40); R2++) {
-        var daten = [];
-        for (var C3 = r.s.c; C3 <= r.e.c; C3++) if (zelleAlsDatum(zelle(R2, C3), false)) daten.push(C3);
-        if (daten.length >= 2) {
-          rollen = { von: daten[0], bis: daten[1] };
-          for (var C4 = r.s.c; C4 <= r.e.c; C4++) {
-            if (daten.indexOf(C4) >= 0) continue;
-            var cc = zelle(R2, C4);
-            if (rollen.name === undefined && cc && cc.t === 's' && zelleText(cc).length >= 2) rollen.name = C4;
-            else if (rollen.personen === undefined && cc && cc.t === 'n' && cc.v >= 1 && cc.v <= 300) rollen.personen = C4;
-          }
-          start = R2; res.erkannt = true; break;
-        }
-      }
-      if (!res.erkannt) return res;
-    }
-    // Name: wenn keine Spalte erkannt, die erste Textspalte nach den Datumsspalten
-    if (rollen.name === undefined) {
-      for (var C5 = r.s.c; C5 <= r.e.c; C5++) {
-        if (C5 === rollen.von || C5 === rollen.bis || C5 === rollen.personen) continue;
-        var probe = zelle(start, C5);
-        if (probe && probe.t === 's' && zelleText(probe).length >= 2) { rollen.name = C5; break; }
-      }
-    }
-    for (var R3 = start; R3 <= letzte; R3++) {
-      var von = zelleAlsDatum(zelle(R3, rollen.von), true), bis = zelleAlsDatum(zelle(R3, rollen.bis), true);
-      if (!von || !bis || bis < von) continue;
-      res.eintraege.push({
-        name: rollen.name !== undefined ? zelleText(zelle(R3, rollen.name)) : '',
-        personen: rollen.personen !== undefined ? zelleAlsZahl(zelle(R3, rollen.personen)) : null,
-        von: von, bis: bis
-      });
-    }
-    return res;
-  }
-
-  function uebersichtBerechnen(eintraege, heute) {
-    var h = tagGenau(heute.getFullYear(), heute.getMonth(), heute.getDate());
-    var anwesend = eintraege.filter(function(e) { return e.von <= h && e.bis >= h; });
-    var kuenftig = eintraege.filter(function(e) { return e.von > h; }).sort(function(a, b) { return a.von - b.von; });
-    var abreisen = anwesend.slice().sort(function(a, b) { return a.bis - b.bis; });
-    function gleicherTag(liste, feld) { return liste.length ? liste.filter(function(e) { return +e[feld] === +liste[0][feld]; }) : []; }
-    var hatPersonen = eintraege.some(function(e) { return e.personen != null; });
-    return {
-      heute: h, anwesend: anwesend, hatPersonen: hatPersonen,
-      personen: anwesend.reduce(function(s, e) { return s + (e.personen || 0); }, 0),
-      naechsteAbreise: gleicherTag(abreisen, 'bis'),
-      naechsteAnreise: gleicherTag(kuenftig, 'von')
-    };
-  }
-
-  // Lädt die Belegungs-Datei und wertet sie aus. cb(ergebnis)
-  function belegungAuswerten(api, cb) {
-    xhrJson('GET', api, null, function(status, info) {
-      if (status !== 200 || !info) return cb({ status: 'fehler' });
-      if (!info.vorhanden) return cb({ status: 'keine-datei', kannSchreiben: !!info.kannSchreiben });
-      var x = new XMLHttpRequest();
-      x.open('GET', api + '/datei', true);
-      x.responseType = 'arraybuffer';
-      x.onload = function() {
-        if (x.status !== 200) return cb({ status: 'fehler' });
-        ladeXLSX().then(function() {
-          var wb;
-          try { wb = window.XLSX.read(new Uint8Array(x.response), { type: 'array', cellNF: true }); } catch (e) { return cb({ status: 'nicht-lesbar', kannSchreiben: !!info.kannSchreiben }); }
-          var alle = [], kopf = [], erkannt = false;
-          wb.SheetNames.forEach(function(n) {
-            var r = blattAuswerten(wb.Sheets[n], info.spalten);
-            if (r.erkannt) erkannt = true;
-            alle = alle.concat(r.eintraege);
-            r.kopf.forEach(function(k) { if (kopf.indexOf(k) < 0) kopf.push(k); });
-          });
-          if (!erkannt) return cb({ status: 'nicht-lesbar', kannSchreiben: !!info.kannSchreiben, kopf: kopf, spalten: info.spalten });
-          var u = uebersichtBerechnen(alle, new Date());
-          u.status = 'ok'; u.kannSchreiben = !!info.kannSchreiben; u.kopf = kopf; u.spalten = info.spalten; u.anzahlEintraege = alle.length;
-          cb(u);
-        }).catch(function() { cb({ status: 'fehler' }); });
-      };
-      x.onerror = function() { cb({ status: 'fehler' }); };
-      x.send();
-    });
-  }
-
-  function tagText(d, heute) {
-    var wt = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()];
-    var tage = Math.round((d - heute) / 86400000);
-    var rel = tage === 0 ? 'heute' : tage === 1 ? 'morgen' : 'in ' + tage + ' Tagen';
-    return wt + ' ' + ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. (' + rel + ')';
-  }
-  function gruppenText(liste, hatPersonen) {
-    return liste.map(function(e) {
-      return esc(e.name || 'Gruppe') + (hatPersonen && e.personen ? ' <span class="gb-zahl">(' + e.personen + ')</span>' : '');
-    }).join(', ');
-  }
-
-  // Zeichnet die kleine Karte "Im Gibeli" in ein Element. opt: { api, oeffnen: function() }
-  function zeigeUebersicht(host, opt) {
-    host.innerHTML = '';
-    belegungAuswerten(opt.api, function(u) {
-      if (u.status === 'keine-datei' && !u.kannSchreiben) { host.hidden = true; return; }
-      if (u.status === 'fehler') { host.hidden = true; return; }
-      host.hidden = false;
-      var k = '<div class="gb-kopf"><h2>Im Gibeli</h2>' +
-        '<button type="button" class="gb-klapp" aria-expanded="true" aria-label="Übersicht ein-/ausklappen">▾</button></div>';
-      var inhalt = '';
-      if (u.status === 'keine-datei') {
-        inhalt = '<p class="gb-hinweis">Noch keine Belegung hochgeladen. Mit einer Excel-Liste (Anreise, Abreise, Name, Personen) erscheint hier, wer im Gibeli ist.</p>';
-      } else if (u.status === 'nicht-lesbar') {
-        inhalt = '<p class="gb-hinweis">Aus der Belegungs-Tabelle lässt sich keine Liste mit <strong>Anreise- und Abreise-Datum</strong> lesen.' +
-          (u.kannSchreiben ? ' Öffne „Aktuelle Belegung“ und lege unter <em>Spalten für die Übersicht</em> fest, welche Spalten Anreise und Abreise sind.' : '') + '</p>';
-      } else {
-        var heute = u.heute;
-        var anwesendText = u.anwesend.length
-          ? (u.hatPersonen ? '<span class="gb-gross">' + u.personen + '</span> Person' + (u.personen === 1 ? '' : 'en') +
-              '<span class="gb-klein">' + u.anwesend.length + ' Gruppe' + (u.anwesend.length === 1 ? '' : 'n') + '</span>'
-            : '<span class="gb-gross">' + u.anwesend.length + '</span> Gruppe' + (u.anwesend.length === 1 ? '' : 'n') + ' / Einträge')
-          : '<span class="gb-gross">0</span> Personen<span class="gb-klein">zurzeit niemand im Haus</span>';
-        var abreise = u.naechsteAbreise.length
-          ? '<strong>' + esc(tagText(u.naechsteAbreise[0].bis, heute)) + '</strong><span class="gb-klein">' + gruppenText(u.naechsteAbreise, u.hatPersonen) + '</span>'
-          : '<span class="gb-klein">–</span>';
-        var anreise = u.naechsteAnreise.length
-          ? '<strong>' + esc(tagText(u.naechsteAnreise[0].von, heute)) + '</strong><span class="gb-klein">' + gruppenText(u.naechsteAnreise, u.hatPersonen) + '</span>'
-          : '<span class="gb-klein">keine weitere Anreise eingetragen</span>';
-        inhalt = '<div class="gb-raster">' +
-          '<div class="gb-box"><div class="gb-label">Aktuell im Haus</div>' + anwesendText +
-            (u.anwesend.length ? '<span class="gb-klein">' + gruppenText(u.anwesend, u.hatPersonen) + '</span>' : '') + '</div>' +
-          '<div class="gb-box"><div class="gb-label">Nächste Abreise</div>' + abreise + '</div>' +
-          '<div class="gb-box"><div class="gb-label">Nächste Anreise</div>' + anreise + '</div></div>';
-      }
-      host.innerHTML = k + '<div class="gb-inhalt">' + inhalt + '</div>' +
-        '<div class="gb-fuss"><button type="button" class="gb-link">Ganze Belegung ansehen →</button></div>';
-      var klapp = host.querySelector('.gb-klapp'), box = host.querySelector('.gb-inhalt'), fuss = host.querySelector('.gb-fuss');
-      var zu = false; try { zu = localStorage.getItem('gb-zu') === '1'; } catch (e) {}
-      function setze(z) { box.hidden = z; fuss.hidden = z; klapp.setAttribute('aria-expanded', String(!z)); klapp.textContent = z ? '▸' : '▾'; try { localStorage.setItem('gb-zu', z ? '1' : '0'); } catch (e) {} }
-      setze(zu);
-      klapp.addEventListener('click', function() { setze(!box.hidden); });
-      host.querySelector('.gb-link').addEventListener('click', function() { if (opt.oeffnen) opt.oeffnen(); });
-    });
-  }
-
-  // Zuordnung der Spalten (nur Verwaltung/Admin) – im Belegungs-Fenster
-  function zeigeSpaltenZuordnung(b) {
-    var v = b.el.querySelector('.xl-versionen');
-    if (!b.cfg.spalten || !b.info || !b.info.kannSchreiben || !b.info.vorhanden) return;
-    var vorhanden = b.el.querySelector('.xl-spalten');
-    if (vorhanden) vorhanden.remove();
-    var wrap = document.createElement('details');
-    wrap.className = 'xl-spalten';
-    var aktuell = b.info.spalten || {};
-    wrap.innerHTML = '<summary>Spalten für die Übersicht „Im Gibeli“</summary>' +
-      '<p class="xl-hinweis">Wird normalerweise automatisch erkannt (Anreise/Abreise/Von/Bis/Name/Personen). Falls nicht, hier die Spalten wählen:</p>' +
-      '<div class="xl-spaltenraster"></div><div style="margin-top:8px"><button type="button" class="xl-btn xl-btn-primary xl-spalten-speichern">Speichern</button> ' +
-      '<button type="button" class="xl-btn xl-spalten-auto">Automatisch</button></div>';
-    v.parentNode.insertBefore(wrap, v);
-    ladeXLSX().then(function() {
-      var x = new XMLHttpRequest(); x.open('GET', b.cfg.api + '/datei', true); x.responseType = 'arraybuffer';
-      x.onload = function() {
-        var kopf = [];
-        try {
-          var wb = window.XLSX.read(new Uint8Array(x.response), { type: 'array', cellNF: true });
-          wb.SheetNames.forEach(function(n) { blattAuswerten(wb.Sheets[n], null).kopf.forEach(function(k) { if (kopf.indexOf(k) < 0) kopf.push(k); }); });
-        } catch (e) {}
-        var felder = [['von', 'Anreise (Datum)'], ['bis', 'Abreise (Datum)'], ['name', 'Name / Gruppe'], ['personen', 'Personenzahl']];
-        wrap.querySelector('.xl-spaltenraster').innerHTML = felder.map(function(f) {
-          return '<label style="display:grid;gap:4px;font-size:13px;font-weight:600;margin-top:6px;">' + f[1] +
-            '<select class="input-field" data-r="' + f[0] + '" style="min-height:40px;padding:6px 10px;font-size:14px;"><option value="">automatisch</option>' +
-            kopf.map(function(k) { return '<option' + (aktuell[f[0]] === k ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select></label>';
-        }).join('');
-      };
-      x.send();
-    });
-    function speichern(werte) {
-      xhrJson('PUT', b.cfg.api + '/spalten', JSON.stringify(werte), function(st) {
-        if (st === 200) { toast('Spalten gespeichert', 'success'); if (b.cfg.nachSpalten) b.cfg.nachSpalten(); lade(b); } else toast('Fehler beim Speichern', 'error');
-      }, { 'Content-Type': 'application/json' });
-    }
-    wrap.querySelector('.xl-spalten-speichern').addEventListener('click', function() {
-      var w = {}; wrap.querySelectorAll('select[data-r]').forEach(function(s) { if (s.value) w[s.dataset.r] = s.value; }); speichern(w);
-    });
-    wrap.querySelector('.xl-spalten-auto').addEventListener('click', function() { speichern({}); });
-  }
-
   function init(opt) {
     toast = opt.toast || toast;
-    (opt.bereiche || []).forEach(function(c) { baue({ key: c.key, titel: c.titel, api: c.api, leer: c.leer, spalten: !!c.spalten, nachSpalten: c.nachSpalten, mount: opt.mount || document.body }); });
+    (opt.bereiche || []).forEach(function(c) { baue({ key: c.key, titel: c.titel, api: c.api, leer: c.leer, ansichten: c.ansichten, mount: opt.mount || document.body }); });
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape') schliesseAlle(); });
   }
 
-  window.ExcelAnsicht = { init: init, oeffne: oeffne, schliesse: schliesse, schliesseAlle: schliesseAlle, zeigeUebersicht: zeigeUebersicht, belegungAuswerten: belegungAuswerten, _test: { blattAuswerten: blattAuswerten, uebersichtBerechnen: uebersichtBerechnen } };
+  window.ExcelAnsicht = { init: init, oeffne: oeffne, schliesse: schliesse, schliesseAlle: schliesseAlle, ladeXLSX: ladeXLSX };
 })();

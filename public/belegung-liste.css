@@ -1,0 +1,89 @@
+/* Belegungsliste (Liste, Pro Tag) und Karte "Im Gibeli" – nutzt die Farbvariablen aus login.css */
+.sr-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+
+/* ----- Liste / Pro Tag ----- */
+.bl-kopf { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; margin-bottom: 12px; }
+.bl-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+.bl-chip { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 160ms, color 160ms, border-color 160ms; }
+.bl-chip:hover { background: var(--tanne-hell); color: var(--tanne); }
+.bl-chip.aktiv { background: var(--tanne); border-color: var(--tanne); color: #fff; }
+.bl-suche { flex: 1 1 200px; min-height: 40px !important; padding: 6px 12px !important; font-size: 14px !important; max-width: 320px; }
+.bl-aktionen { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.bl-datei { position: relative; }
+.bl-hinweis { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+.bl-leer { text-align: center; padding: 36px 20px; color: var(--text-muted); }
+.bl-leer svg { margin-bottom: 10px; }
+
+.bl-scroll { overflow: auto; max-height: calc(94dvh - 380px); min-height: 100px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 1px 2px rgba(31,42,36,.08), 0 2px 8px rgba(31,42,36,.06); }
+.bl-tabelle { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+.bl-tabelle th { position: sticky; top: 0; z-index: 2; text-align: left; padding: 10px 14px; background: var(--tanne); color: #fff; font-weight: 700; white-space: nowrap; border-bottom: 3px solid var(--holz); }
+.bl-tabelle td { padding: 10px 14px; border-bottom: 1px solid #EEE9DD; vertical-align: top; }
+.bl-tabelle tbody tr:nth-child(even) td { background: #FBF9F4; }
+.bl-tabelle tbody tr:hover td { background: var(--tanne-hell); }
+.bl-tabelle tbody tr.jetzt td { background: #EAF2EC; }
+.bl-tabelle th.zahl, .bl-tabelle td.zahl { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bl-tabelle td:first-child { color: var(--tanne); }
+.bl-notiz { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.bl-akt { text-align: right; white-space: nowrap; }
+.bl-akt .xl-btn { min-height: 34px; padding: 4px 10px; font-size: 13px; }
+.bl-badge { display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; vertical-align: middle; white-space: nowrap; }
+.bl-badge.im-haus { background: var(--tanne); color: #fff; }
+.bl-badge.kommt { background: var(--blau-hell); color: #1F4E66; }
+.bl-badge.vorbei { background: #EEEBE4; color: var(--text-muted); }
+
+/* Pro Tag */
+.bl-tag td.zahl { position: relative; min-width: 90px; }
+.bl-tag td.zahl strong { position: relative; z-index: 1; font-size: 16px; color: var(--tanne); }
+.bl-balken { position: absolute; left: 0; top: 6px; bottom: 6px; width: var(--w); background: var(--tanne-hell); border-radius: 0 8px 8px 0; z-index: 0; }
+.bl-tag tr.we td { background-image: linear-gradient(rgba(139,94,60,.06), rgba(139,94,60,.06)); }
+.bl-wer { color: var(--text); }
+.bl-z, .gb-zahl { color: var(--holz); font-weight: 600; }
+
+/* Formular / Vorschau */
+.bl-form, .bl-vorschau { max-width: 760px; }
+.bl-form h3, .bl-vorschau h3 { font-family: var(--font-head); font-size: 20px; color: var(--tanne); margin-bottom: 10px; }
+.bl-zeile { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.bl-formaktionen { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.bl-staende { margin-top: 14px; font-size: 14px; }
+.bl-staende summary { cursor: pointer; font-weight: 600; color: var(--holz); min-height: 36px; display: flex; align-items: center; }
+.bl-staende ul { list-style: none; display: grid; gap: 6px; margin-top: 6px; }
+.bl-staende li { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 10px; background: var(--creme); border: 1px solid var(--border); border-radius: 12px; font-size: 13px; }
+.bl-staende .xl-btn { min-height: 34px; padding: 4px 10px; font-size: 13px; }
+
+@media (max-width: 640px) {
+  .bl-aktionen { margin-left: 0; width: 100%; }
+  .bl-aktionen .xl-btn { flex: 1; }
+  .bl-scroll { max-height: none; border: none; box-shadow: none; background: transparent; overflow: visible; }
+  .bl-tabelle thead { display: none; }
+  .bl-tabelle, .bl-tabelle tbody { display: block; }
+  .bl-tabelle tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; padding: 12px; margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--holz); border-radius: 12px; box-shadow: 0 1px 2px rgba(31,42,36,.08); }
+  .bl-tabelle tbody tr.jetzt { border-left-color: var(--tanne); background: #F2F7F3; }
+  .bl-tabelle tbody tr td, .bl-tabelle tbody tr:nth-child(even) td, .bl-tabelle tbody tr:hover td, .bl-tabelle tbody tr.jetzt td { display: block; padding: 2px 0; border: none; background: transparent; text-align: left; }
+  .bl-tabelle td:first-child { grid-column: 1 / -1; font-size: 16px; }
+  .bl-tabelle td[data-l]:not(:first-child)::before { content: attr(data-l); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; color: var(--text-muted); }
+  .bl-tabelle td.zahl { text-align: left; }
+  .bl-akt { grid-column: 1 / -1; text-align: left; padding-top: 6px !important; }
+  .bl-tag tbody tr { border-left-color: var(--tanne); }
+  .bl-tag td.bl-wer { grid-column: 1 / -1; }
+  .bl-balken { display: none; }
+  .bl-zeile { grid-template-columns: 1fr; }
+}
+
+/* ----- Karte "Im Gibeli" ----- */
+.gb-karte { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--holz); border-radius: 14px; padding: 12px 16px 10px; box-shadow: 0 1px 2px rgba(31,42,36,.08), 0 2px 8px rgba(31,42,36,.06); font-family: var(--font-body); color: var(--text); }
+.gb-karte[hidden] { display: none !important; }
+.gb-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gb-kopf h2 { font-family: var(--font-head); font-size: 19px; color: var(--tanne); }
+.gb-klapp { background: none; border: 1.5px solid var(--border); border-radius: 10px; width: 40px; height: 36px; font-size: 16px; color: var(--tanne); cursor: pointer; }
+.gb-klapp:hover { background: var(--tanne-hell); }
+.gb-raster { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+.gb-box { background: var(--creme); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gb-label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; color: var(--text-muted); }
+.gb-gross { font-family: var(--font-head); font-size: 28px; font-weight: 600; color: var(--tanne); line-height: 1.1; margin-right: 6px; }
+.gb-box strong { font-size: 15px; color: var(--tanne); }
+.gb-klein { font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+.gb-hinweis { font-size: 14px; color: var(--text-muted); margin-top: 8px; }
+.gb-fuss { margin-top: 8px; text-align: right; }
+.gb-link { background: none; border: none; color: var(--blau-text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; padding: 6px 0; text-decoration: underline; }
+.gb-link:hover { color: var(--tanne); }
+@media (max-width: 700px) { .gb-raster { grid-template-columns: 1fr; } }

@@ -10,7 +10,8 @@
     "test:daten": "node test/datensicherheit.js",
     "test:funktionen": "node test/funktionen.js",
     "test:erkennung": "node test/erkennung.js",
-    "test": "npm run test:erkennung && npm run test:funktionen && npm run test:daten"
+    "test": "npm run test:erkennung && npm run test:belegung && npm run test:funktionen && npm run test:daten",
+    "test:belegung": "node test/belegung-parser.js"
   },
   "dependencies": {
     "@tesseract.js-data/deu": "^1.0.0",

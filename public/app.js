@@ -871,21 +871,22 @@ function initExcelBereiche() {
     mount: document.body,
     toast: zeigeToast,
     bereiche: [
-      { key: 'belegung', titel: 'Aktuelle Belegung', api: '/api/belegung', leer: 'Noch keine Belegung hochgeladen.', spalten: true, nachSpalten: ladeGibeliKarte },
+      { key: 'belegung', titel: 'Aktuelle Belegung', api: '/api/belegung', leer: 'Noch keine Belegung hochgeladen.', ansichten: BelegungListe.ansichten() },
       { key: 'gerichte', titel: 'Gerichte', api: '/api/gerichte', leer: 'Noch keine Gerichte hochgeladen.' }
     ]
   });
+  BelegungListe._nachAenderung = ladeGibeliKarte;
   document.getElementById('sidebarBelegung').addEventListener('click', function() { schliesseSidebar(); ExcelAnsicht.oeffne('belegung'); });
   document.getElementById('sidebarGerichte').addEventListener('click', function() { schliesseSidebar(); ExcelAnsicht.oeffne('gerichte'); });
   ladeGibeliKarte();
 }
 function schliesseExcelModale() { ExcelAnsicht.schliesseAlle(); }
 
-// Kleine Karte "Im Gibeli": wer ist da, nächste Abreise/Anreise (aus der Belegungs-Tabelle)
+// Kleine Karte "Im Gibeli": wer ist da, nächste Abreise/Anreise (aus der Belegungsliste)
 function ladeGibeliKarte() {
   var host = document.getElementById('gibeliKarte');
   if (!host || offlineStart) return;
-  ExcelAnsicht.zeigeUebersicht(host, { api: '/api/belegung', oeffnen: function() { ExcelAnsicht.oeffne('belegung'); } });
+  BelegungListe.zeigeKarte(host, { oeffnen: function() { ExcelAnsicht.oeffne('belegung'); } });
 }
 
 // ===== Weitere Fotos zu einem Beleg =====
@@ -1174,7 +1175,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js').then(function() { return navigator.serviceWorker.ready; }).then(function(reg) {
       // Oberfläche für den Offline-Start zwischenspeichern (nur die App-Dateien, keine Daten)
-      if (reg.active) reg.active.postMessage({ typ: 'huelle', urls: ['/', '/app.js', '/style.css', '/login.css', '/excel-ansicht.css', '/excel-ansicht.js', '/vendor/xlsx.full.min.js',
+      if (reg.active) reg.active.postMessage({ typ: 'huelle', urls: ['/', '/app.js', '/style.css', '/login.css', '/excel-ansicht.css', '/excel-ansicht.js', '/belegung-liste.css', '/belegung-liste.js', '/vendor/xlsx.full.min.js',
         '/fonts/inter-latin-500-normal.woff2', '/fonts/inter-latin-700-normal.woff2', '/fonts/fraunces-latin-700-normal.woff2'] });
     }).catch(function() {});
   });
