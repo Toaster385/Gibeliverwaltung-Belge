@@ -722,30 +722,38 @@ function zeigeScanStatus(art, text) {
 // Zeigt an, ob die Felder noch den automatisch gelesenen Werten entsprechen (= wird "verifiziert")
 function aktualisiereScanHinweise() {
   if (!scanState.token) return;
+  var s = scanState.sicher || {};
   var datum = document.getElementById('feldDatum').value;
   var nr = document.getElementById('feldBelegnummer').value.trim();
-  var betragOk = scanState.betrag != null && Math.abs(parseFloat(document.getElementById('feldBetrag').value) - scanState.betrag) < 0.005 &&
+  var betragGelesen = scanState.betrag != null && Math.abs(parseFloat(document.getElementById('feldBetrag').value) - scanState.betrag) < 0.005 &&
     (!scanState.waehrung || document.getElementById('feldWaehrung').value === scanState.waehrung);
-  document.getElementById('hintBetrag').classList.toggle('hidden', !(betragOk && (scanState.sicher || {}).betrag));
-  document.getElementById('hintGeschaeft').classList.toggle('hidden', !(scanState.geschaeft && document.getElementById('feldGeschaeft').value.trim() === scanState.geschaeft.trim()));
-  var s = scanState.sicher || {};
   var datumGelesen = !!scanState.datum && datum === scanState.datum;
   var nrGelesen = !!scanState.belegnummer && nr === scanState.belegnummer;
-  var datumOk = datumGelesen && !!s.datum;
-  var nrOk = nrGelesen && !!s.belegnummer;
-  document.getElementById('hintDatum').classList.toggle('hidden', !datumOk);
-  document.getElementById('hintBelegnummer').classList.toggle('hidden', !nrOk);
-  var unsicher = [];
-  if (datumGelesen && !s.datum) unsicher.push('Datum');
-  if (nrGelesen && !s.belegnummer) unsicher.push('Belegnummer');
-  if (scanState.betrag != null && !s.betrag) unsicher.push('Betrag');
-  if (datumOk && nrOk) {
-    zeigeScanStatus('ok', 'Datum und Belegnummer aus dem Foto gelesen – der Beleg wird als verifiziert gespeichert.' + (unsicher.length ? ' Bitte trotzdem prüfen: ' + unsicher.join(', ') + '.' : ''));
-  } else if (scanState.datum || scanState.belegnummer || scanState.betrag != null) {
-    zeigeScanStatus('warn', (unsicher.length ? 'Unsicher gelesen: ' + unsicher.join(', ') + ' – bitte mit dem Foto vergleichen und ggf. korrigieren. ' : 'Nicht alles automatisch erkannt oder geändert – bitte prüfen. ') + 'Der Beleg wird als manuell (nicht verifiziert) gespeichert.');
-  } else {
-    zeigeScanStatus('warn', 'Auf dem Foto konnten Datum und Belegnummer nicht gelesen werden. Bitte von Hand eintragen – der Beleg ist dann nicht verifiziert.');
+  var geschaeftGelesen = !!scanState.geschaeft && document.getElementById('feldGeschaeft').value.trim() === scanState.geschaeft.trim();
+  var pruefen = [];
+  // Pro Feld: ✓ nur bei sicher gelesenem Wert, ⚠ bei unsicherem (bitte vergleichen), nichts wenn von Hand geändert
+  function hinweis(id, gelesen, sicher, name, okText) {
+    var el = document.getElementById(id);
+    el.classList.toggle('hidden', !gelesen);
+    el.classList.toggle('warn', gelesen && !sicher);
+    if (!gelesen) return;
+    el.textContent = sicher ? okText : '⚠ Bitte mit dem Beleg vergleichen';
+    if (!sicher && name !== 'Geschäft') pruefen.push(name); // Geschäft ist nie prüfpflichtig, nur Hinweis am Feld
   }
+  hinweis('hintDatum', datumGelesen, !!s.datum, 'Datum', '✓ aus dem Foto gelesen');
+  hinweis('hintBetrag', betragGelesen, !!s.betrag, 'Betrag', '✓ Betrag und Währung aus dem Foto gelesen');
+  hinweis('hintBelegnummer', nrGelesen, !!s.belegnummer, 'Belegnummer', '✓ aus dem Foto gelesen');
+  hinweis('hintGeschaeft', geschaeftGelesen, false, 'Geschäft', '');
+  var verifiziert = datumGelesen && nrGelesen && !!s.datum && !!s.belegnummer;
+  var text;
+  if (!scanState.datum && !scanState.belegnummer && scanState.betrag == null) {
+    zeigeScanStatus('warn', 'Auf dem Foto konnten Datum und Belegnummer nicht gelesen werden. Bitte von Hand eintragen – der Beleg ist dann nicht verifiziert.');
+    return;
+  }
+  if (pruefen.length) text = 'Bitte prüfen: ' + pruefen.join(', ') + '. Der Rest wurde sicher gelesen. ';
+  else text = 'Alles aus dem Foto gelesen. ';
+  text += verifiziert ? 'Der Beleg wird als verifiziert gespeichert.' : 'Der Beleg wird als manuell (nicht verifiziert) gespeichert.';
+  zeigeScanStatus(verifiziert && !pruefen.length ? 'ok' : 'warn', text);
 }
 
 // Einstieg für jede neu gewählte/aufgenommene Datei

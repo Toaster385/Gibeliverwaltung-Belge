@@ -35,6 +35,12 @@ const faelle = [
   { name: 'Tankstelle: 3 als 9 gelesen, MwSt-Gegenprobe wählt den richtigen Betrag',
     text: 'Summe EUR 96,09\n19,00 % MWST. A EUR 5,76\nMasterCard EUR 96,09\nSumme Netto EUR 30,33\nEUR 36,09\nSumme EUR 36,09',
     erwartet: { betrag: 36.09 } },
+  { name: 'Betrag überall mit 9 statt 3 gelesen: MwSt-Zeile korrigiert ihn',
+    text: 'Summe EUR 96,09\nMasterCard EUR 96,09\nEUR 96,09\n19,00 % MWST. A EUR 5,76\nSumme Netto EUR 30,33',
+    erwartet: { betrag: 36.09, waehrung: 'EUR' } },
+  { name: 'Lesemüll im Geschäftsnamen wird entfernt',
+    text: 'Sg x ( ANKSTELLE\nSumme EUR 5,00',
+    erwartet: { geschaeft: 'Ankstelle' } },
   { name: 'Zukünftiges / unmögliches Datum wird ignoriert',
     text: 'Laden\nGültig bis 31.12.2030\n31.02.2026',
     erwartet: { datum: null } },
@@ -55,6 +61,7 @@ const sich = [
   ['Bon-Nummer aus Tabelle = sicher', belegnummerDetails('Datum Zeit Bon POS KNo Schicht\n17.03.26 22:27 63774 01 0005 254').sicher, true],
   ['Nummer nur über "Nr." = unsicher', belegnummerDetails('Nr. 4711').sicher, false],
   ['Betrag mit passender MwSt = sicher', betragDetails('Summe EUR 36,09\n19,00 % MWST. A EUR 5,76').sicher, true],
+  ['Betrag, der nicht zur MwSt passt, bleibt unsicher (auch wenn mehrfach gelesen)', betragDetails('Summe EUR 96,09\nEUR 96,09\nEUR 96,09\n19,00 % MWST. A EUR 1,00').sicher, false],
   ['Betrag ohne Bestätigung = unsicher', betragDetails('Total CHF 52.05').sicher, false],
 ];
 for (const [name, ist, soll] of sich) { const ok = ist === soll; console.log((ok ? '  ✓ ' : '  ✗ ') + name); if (!ok) fehler++; }

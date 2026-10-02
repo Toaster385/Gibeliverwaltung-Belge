@@ -474,6 +474,7 @@ form { padding: 20px; }
 @keyframes drehen { to { transform: rotate(360deg); } }
 
 .field-hint { font-size: 13px; color: var(--tanne); font-weight: 600; }
+.field-hint.warn { color: #9a3b12; }
 .verif-ja { background: var(--blau-hell); color: #1F4E66; }
 .verif-nein { background: #EEEBE4; color: var(--text-muted); }
 

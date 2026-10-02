@@ -151,10 +151,37 @@ function betragDetails(text) {
   });
   const passtZurSteuer = b => steuerZeilen.some(t => Math.abs(t.mwst - b * t.satz / (100 + t.satz)) < 0.0115);
   for (const [b] of stimmen) if (passtZurSteuer(b)) stimmen.set(b, stimmen.get(b) + 3);
+  let korrigiert = false;
+  if (steuerZeilen.length && ![...stimmen.keys()].some(passtZurSteuer)) {
+    // Kein gelesener Betrag passt zur MwSt: häufige Ziffernverwechslungen (3/9, 0/8, 1/7, 5/6) durchprobieren
+    // und Netto + MwSt als weiteren Kandidaten nehmen. Übernommen wird nur ein eindeutiger Treffer.
+    const VERW = { 3: '9', 9: '3', 0: '8', 8: '0', 1: '7', 7: '1', 5: '6', 6: '5' };
+    const treffer = new Set(), ausNetto = new Set();
+    for (const [b] of stimmen) {
+      const ziffern = b.toFixed(2).replace('.', '').split('');
+      const pos = ziffern.map((c, i) => (VERW[c] ? i : -1)).filter(i => i >= 0);
+      const probiere = v => { const w = parseInt(v.join(''), 10) / 100; if (passtZurSteuer(w)) treffer.add(w); };
+      pos.forEach((i, x) => {
+        const v = ziffern.slice(); v[i] = VERW[v[i]]; probiere(v);
+        pos.slice(x + 1).forEach(j => { const v2 = v.slice(); v2[j] = VERW[v2[j]]; probiere(v2); });
+      });
+    }
+    const netto = [];
+    zeilen.filter(z => /netto/i.test(z)).forEach(z => netto.push(...betraegeInZeile(z)));
+    netto.forEach(n => steuerZeilen.forEach(t => { const w = Math.round((n + t.mwst) * 100) / 100; if (passtZurSteuer(w)) { treffer.add(w); ausNetto.add(w); } }));
+    // Eindeutig? Sonst: Netto + MwSt entscheidet, danach die kleinste Abweichung zur gelesenen MwSt
+    const abw = w => Math.min(...steuerZeilen.map(t => Math.abs(t.mwst - w * t.satz / (100 + t.satz))));
+    let kand = [...treffer];
+    if (kand.length > 1 && [...ausNetto].some(w => treffer.has(w))) kand = [...ausNetto];
+    if (kand.length > 1) { kand.sort((x, y) => abw(x) - abw(y)); if (abw(kand[1]) - abw(kand[0]) < 0.002) kand = []; else kand = [kand[0]]; }
+    if (kand.length === 1) { stimmen.set(kand[0], 100); korrigiert = true; }
+  }
   const beste = [...stimmen.entries()].sort((a, b) => b[1] - a[1])[0][0];
   const mwstOk = passtZurSteuer(beste);
-  // sicher = MwSt-Gegenprobe stimmt, oder der Betrag wurde dreimal gleich gelesen
-  return { betrag: beste, waehrung: waehrungIn(erster.quelle) || waehrungIn(text), sicher: mwstOk || stimmen.get(beste) >= 3 };
+  // sicher = MwSt-Gegenprobe stimmt, oder (wenn der Beleg keine prüfbare MwSt-Zeile hat) der Betrag wurde dreimal gleich gelesen.
+  // Gibt es eine MwSt-Zeile, die NICHT passt, ist der Betrag unsicher – auch wenn er mehrfach gleich gelesen wurde (Ziffernverwechslung).
+  const sicher = steuerZeilen.length ? mwstOk : stimmen.get(beste) >= 3;
+  return { betrag: beste, waehrung: waehrungIn(erster.quelle) || waehrungIn(text), sicher, korrigiert };
 }
 function extractBetrag(text) { const d = betragDetails(text); return d ? { betrag: d.betrag, waehrung: d.waehrung } : null; }
 
@@ -165,7 +192,9 @@ const ADRESSE = /(strasse|str\.|weg\b|platz|gasse|allee|postfach|bahnhof)/i;
 
 function extractGeschaeft(text) {
   const zeilen = text.split(/\r?\n/).map(z => z.replace(/[|_~=*#]+/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 7);
-  for (const z of zeilen) {
+  for (const roh of zeilen) {
+    // Lesemüll-Wörter ("Sg", "x", "(") entfernen, nur echte Wörter behalten
+    const z = roh.split(' ').filter(w => /^[\p{L}][\p{L}\-.]{2,}$/u.test(w) || /^\p{Lu}{2}$/u.test(w) || /\d/.test(w)).join(' ');
     if (z.length < 3 || z.length > 40 || /\d/.test(z) || GESCHAEFT_AUS.test(z) || ADRESSE.test(z) || ZAHLUNG.test(z)) continue;
     const buchstaben = (z.match(/\p{L}/gu) || []).length;
     if (buchstaben < 3 || buchstaben / z.length < 0.75) continue;
@@ -238,5 +267,5 @@ async function scanneBeleg(dateipfad) {
   return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, geschaeft, sicher, text };
 }
 
-const ERKENNUNG_VERSION = 6; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
+const ERKENNUNG_VERSION = 7; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
 module.exports = { ERKENNUNG_VERSION, datumDetails, belegnummerDetails, betragDetails, scanneBeleg, extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft };
