@@ -138,17 +138,21 @@ function betragDetails(text) {
     if (m) { const w = parseFloat(m[1].replace(',', '.')); stimmen.set(w, (stimmen.get(w) || 0) + 1); }
   });
   if (!erster) return null;
-  // Gegenprobe über die Mehrwertsteuer: Brutto * Satz / (1 + Satz) muss als MwSt-Betrag auf dem Beleg stehen (verhindert z.B. 96,09 statt 36,09)
-  const steuerWerte = [];
-  zeilen.filter(z => /mwst|mw-st|ust|tax|netto/i.test(z)).forEach(z => steuerWerte.push(...betraegeInZeile(z)));
-  let mwstOk = false;
-  const SAETZE = [0.19, 0.07, 0.081, 0.026, 0.038, 0.077];
-  for (const [b] of stimmen) {
-    if (steuerWerte.some(m => SAETZE.some(r => Math.abs(m - b * r / (1 + r)) < 0.021)))
-      { stimmen.set(b, stimmen.get(b) + 3); }
-  }
+  // Gegenprobe über die Mehrwertsteuer: Zeile wie "19,00 % MWST. A EUR 5,76" – Brutto * Satz / (100 + Satz) muss den MwSt-Betrag ergeben (verhindert z.B. 96,09 statt 36,09)
+  const steuerZeilen = [];
+  zeilen.forEach(z => {
+    if (!/mwst|mw-st|ust|tax/i.test(z)) return;
+    const p = z.match(/(\d{1,2}(?:[.,]\d{1,3})?)\s?%/);
+    if (!p) return;
+    const satz = parseFloat(p[1].replace(',', '.'));
+    const rest = z.slice(p.index + p[0].length);
+    const werte = betraegeInZeile(rest);
+    if (satz > 0 && satz < 30 && werte.length) steuerZeilen.push({ satz, mwst: werte[werte.length - 1] });
+  });
+  const passtZurSteuer = b => steuerZeilen.some(t => Math.abs(t.mwst - b * t.satz / (100 + t.satz)) < 0.0115);
+  for (const [b] of stimmen) if (passtZurSteuer(b)) stimmen.set(b, stimmen.get(b) + 3);
   const beste = [...stimmen.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  mwstOk = steuerWerte.some(m => SAETZE.some(r => Math.abs(m - beste * r / (1 + r)) < 0.021));
+  const mwstOk = passtZurSteuer(beste);
   // sicher = MwSt-Gegenprobe stimmt, oder der Betrag wurde dreimal gleich gelesen
   return { betrag: beste, waehrung: waehrungIn(erster.quelle) || waehrungIn(text), sicher: mwstOk || stimmen.get(beste) >= 3 };
 }
@@ -165,6 +169,7 @@ function extractGeschaeft(text) {
     if (z.length < 3 || z.length > 40 || /\d/.test(z) || GESCHAEFT_AUS.test(z) || ADRESSE.test(z) || ZAHLUNG.test(z)) continue;
     const buchstaben = (z.match(/\p{L}/gu) || []).length;
     if (buchstaben < 3 || buchstaben / z.length < 0.75) continue;
+    if (!/\p{L}{4,}/u.test(z)) continue; // Lesemüll wie "Mc An" nicht als Name übernehmen
     // GROSSBUCHSTABEN -> Normale Schreibweise ("LANDI FRUTIGEN" -> "Landi Frutigen")
     if (z === z.toUpperCase()) return z.toLowerCase().replace(/(^|[\s\-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
     return z;
@@ -215,11 +220,12 @@ function lies(dateipfad, psm) {
 }
 
 async function scanneBeleg(dateipfad) {
-  let text = await lies(dateipfad, 3); // automatische Seitenanalyse
+  // Messung mit verkleinerten Handyfotos: der Textblock-Modus (6) liest Beträge deutlich zuverlässiger als die automatische Seitenanalyse (3).
+  // Deshalb zuerst Modus 6; Modus 3 nur als Ergänzung für fehlende Felder.
+  let text = await lies(dateipfad, 6);
   let datum = extractDatum(text), belegnummer = extractBelegnummer(text), summe = extractBetrag(text), geschaeft = extractGeschaeft(text);
   if (!datum || !belegnummer || !summe) {
-    // Zweiter Versuch: Beleg als einheitlicher Textblock lesen (hilft bei schmalen Kassenzetteln)
-    const text2 = await lies(dateipfad, 6);
+    const text2 = await lies(dateipfad, 3);
     datum = datum || extractDatum(text2);
     belegnummer = belegnummer || extractBelegnummer(text2);
     summe = summe || extractBetrag(text2);
@@ -232,5 +238,5 @@ async function scanneBeleg(dateipfad) {
   return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, geschaeft, sicher, text };
 }
 
-const ERKENNUNG_VERSION = 5; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
+const ERKENNUNG_VERSION = 6; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
 module.exports = { ERKENNUNG_VERSION, datumDetails, belegnummerDetails, betragDetails, scanneBeleg, extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft };
