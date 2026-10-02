@@ -952,6 +952,7 @@ function richteMenueEin() {
   if (istPrivilegiert()) {
     document.getElementById('sidebarExport').classList.remove('hidden');
     document.getElementById('sidebarPapierkorb').classList.remove('hidden');
+    document.getElementById('sidebarAdmin').classList.remove('hidden');
   }
   if (!istAdminRolle()) document.getElementById('sidebarPin').classList.remove('hidden');
 }

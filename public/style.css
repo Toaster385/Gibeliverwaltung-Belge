@@ -412,6 +412,7 @@ form { padding: 20px; }
   transition: background var(--t);
   width: 100%;
 }
+a.sidebar-item { text-decoration: none; box-sizing: border-box; }
 .sidebar-item:hover { background: var(--tanne-hell); }
 .sidebar-item-danger { color: var(--rot-dunkel); }
 .sidebar-item-danger:hover { background: var(--rot-hell); }
