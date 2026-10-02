@@ -133,6 +133,14 @@ function extractBetrag(text) {
     if (m) { const w = parseFloat(m[1].replace(',', '.')); stimmen.set(w, (stimmen.get(w) || 0) + 1); }
   });
   if (!erster) return null;
+  // Gegenprobe über die Mehrwertsteuer: Brutto * Satz / (1 + Satz) muss als MwSt-Betrag auf dem Beleg stehen (verhindert z.B. 96,09 statt 36,09)
+  const steuerWerte = [];
+  zeilen.filter(z => /mwst|mw-st|ust|tax|netto/i.test(z)).forEach(z => steuerWerte.push(...betraegeInZeile(z)));
+  const SAETZE = [0.19, 0.07, 0.081, 0.026, 0.038, 0.077];
+  for (const [b] of stimmen) {
+    if (steuerWerte.some(m => SAETZE.some(r => Math.abs(m - b * r / (1 + r)) < 0.021)))
+      stimmen.set(b, stimmen.get(b) + 3);
+  }
   const beste = [...stimmen.entries()].sort((a, b) => b[1] - a[1])[0][0];
   return { betrag: beste, waehrung: waehrungIn(erster.quelle) || waehrungIn(text) };
 }
@@ -212,5 +220,5 @@ async function scanneBeleg(dateipfad) {
   return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, geschaeft, text };
 }
 
-const ERKENNUNG_VERSION = 3; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
+const ERKENNUNG_VERSION = 4; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
 module.exports = { ERKENNUNG_VERSION, scanneBeleg, extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft };
