@@ -80,10 +80,11 @@ function nimmScan(token, userId) {
   scans.delete(String(token));
   const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(e.pfad)}`;
   fs.renameSync(e.pfad, path.join(uploadsDir, name));
-  return { filename: name, originalname: e.originalname, datum: e.datum, belegnummer: e.belegnummer, betrag: e.betrag, waehrung: e.waehrung, geschaeft: e.geschaeft };
+  return { filename: name, originalname: e.originalname, datum: e.datum, belegnummer: e.belegnummer, betrag: e.betrag, waehrung: e.waehrung, geschaeft: e.geschaeft, sicher: e.sicher || {} };
 }
 
-const istVerifiziert = (scan, datum, nr) => !!(scan && scan.datum && scan.belegnummer && scan.datum === datum && scan.belegnummer === nr);
+// Verifiziert nur, wenn Datum und Belegnummer unverändert aus dem Foto stammen UND die Erkennung sie als sicher einstuft (mehrfach gelesen)
+const istVerifiziert = (scan, datum, nr) => !!(scan && scan.datum && scan.belegnummer && scan.datum === datum && scan.belegnummer === nr && scan.sicher && scan.sicher.datum && scan.sicher.belegnummer);
 
 // Welche Felder stammen unverändert aus dem Foto? (Kennzeichnung für Admins)
 function autoFelder(scan, w) {
@@ -169,10 +170,10 @@ module.exports = function (app) {
     scans.set(token, {
       userId: req.session.benutzer.id, pfad: req.file.path, originalname: req.file.originalname,
       datum: erkannt.datum, belegnummer: erkannt.belegnummer, betrag: erkannt.betrag, waehrung: erkannt.waehrung, geschaeft: erkannt.geschaeft,
-      ablauf: Date.now() + SCAN_TTL
+      sicher: erkannt.sicher || {}, ablauf: Date.now() + SCAN_TTL
     });
     res.json({ scanToken: token, datum: erkannt.datum, belegnummer: erkannt.belegnummer, betrag: erkannt.betrag,
-      waehrung: erkannt.waehrung, geschaeft: erkannt.geschaeft, lesefehler, text: text.slice(0, 1500), version: ERKENNUNG_VERSION });
+      waehrung: erkannt.waehrung, geschaeft: erkannt.geschaeft, lesefehler, sicher: erkannt.sicher || {}, text: text.slice(0, 1500), version: ERKENNUNG_VERSION });
   });
 
   // ----- Liste / Einzelbeleg -----

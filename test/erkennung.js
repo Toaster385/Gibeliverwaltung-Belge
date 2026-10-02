@@ -46,6 +46,19 @@ const faelle = [
     erwartet: { betrag: null } },
 ];
 
+// Sicherheitseinstufung: nur mehrfach bzw. durch Gegenprobe bestätigte Werte dürfen zur Verifizierung führen
+const { datumDetails, belegnummerDetails, betragDetails } = require('../scan');
+const sich = [
+  ['Datum zweimal gleich gelesen = sicher', datumDetails('17.03.2026 22:27\nDatum 17.03.26', heute).sicher, true],
+  ['Datum nur einmal gelesen = unsicher', datumDetails('Datum 17.03.26', heute).sicher, false],
+  ['Widersprüchliche Daten = unsicher', datumDetails('17.03.2026\n17.09.2026\n17.03.26', heute).sicher, false],
+  ['Bon-Nummer aus Tabelle = sicher', belegnummerDetails('Datum Zeit Bon POS KNo Schicht\n17.03.26 22:27 63774 01 0005 254').sicher, true],
+  ['Nummer nur über "Nr." = unsicher', belegnummerDetails('Nr. 4711').sicher, false],
+  ['Betrag mit passender MwSt = sicher', betragDetails('Summe EUR 36,09\n19,00 % MWST. A EUR 5,76').sicher, true],
+  ['Betrag ohne Bestätigung = unsicher', betragDetails('Total CHF 52.05').sicher, false],
+];
+for (const [name, ist, soll] of sich) { const ok = ist === soll; console.log((ok ? '  ✓ ' : '  ✗ ') + name); if (!ok) fehler++; }
+
 for (const f of faelle) {
   const e = f.erwartet, ist = {};
   if ('datum' in e) ist.datum = extractDatum(f.text, heute);

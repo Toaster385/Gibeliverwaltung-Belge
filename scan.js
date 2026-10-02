@@ -12,7 +12,7 @@ function normalisiereZiffern(text) {
     .replace(/(?<=\d)[lI|](?=[\d.,\/-])|(?<=[\d.,\/-])[lI|](?=\d)/g, '1');
 }
 
-function extractDatum(text, heute = new Date()) {
+function datumDetails(text, heute = new Date()) {
   text = normalisiereZiffern(text);
   const kandidaten = [];
   const re = /(?<!\d)(\d{1,2})\s?[.,\/-]\s?(\d{1,2})\s?[.,\/-]\s?(\d{4}|\d{2})(?!\d)|(?<!\d)(20\d{2})-(\d{2})-(\d{2})(?!\d)/g;
@@ -32,8 +32,12 @@ function extractDatum(text, heute = new Date()) {
   const zaehler = {};
   kandidaten.forEach(k => { zaehler[k.iso] = (zaehler[k.iso] || 0) + 2 + k.bonus; });
   // Meiste Treffer gewinnt (ein einzelner Lesefehler soll nicht entscheiden); bei Gleichstand das erste Datum im Text
-  return kandidaten.map(k => k.iso).sort((a, b) => zaehler[b] - zaehler[a])[0];
+  const iso = kandidaten.map(k => k.iso).sort((a, b) => zaehler[b] - zaehler[a])[0];
+  const treffer = kandidaten.filter(k => k.iso === iso).length;
+  // sicher = mindestens zweimal gelesen und kein abweichendes Datum auf dem Beleg
+  return { iso, sicher: treffer >= 2 && treffer === kandidaten.length };
 }
+function extractDatum(text, heute) { const d = datumDetails(text, heute); return d ? d.iso : null; }
 
 const STARK = /(beleg|bon\b|kassenbon|kassenzettel|rechnung|rechn\.?|quittung|transaktion|trans\b|ticket|receipt|invoice|facture|ref(erenz)?)/i;
 const SCHWACH = /(?:^|[^a-z])(nr|no|nummer|n°|#)\.?/i;
@@ -61,11 +65,11 @@ function belegnummerAusTabelle(zeilen) {
   return null;
 }
 
-function extractBelegnummer(text) {
+function belegnummerDetails(text) {
   text = normalisiereZiffern(text);
   const zeilen = text.split(/\r?\n/);
   const tabelle = belegnummerAusTabelle(zeilen);
-  if (tabelle) return tabelle;
+  if (tabelle) return { nr: tabelle, sicher: true };
   let schwach = null;
   for (const zeile of zeilen) {
     if (AUSSCHLUSS.test(zeile) || /\d+\/\d+\/\d+/.test(zeile)) continue;
@@ -73,7 +77,7 @@ function extractBelegnummer(text) {
     if (s) {
       const rest = zeile.slice(s.index + s[0].length);
       const ziffern = ziffernDerZeile(rest.replace(/^[^\d]{0,25}/, m => (/\d/.test(m) ? '' : m)));
-      if (ziffern.length >= 3) return ziffern.slice(-3);
+      if (ziffern.length >= 3) return { nr: ziffern.slice(-3), sicher: true };
     }
     if (!schwach) {
       const w = zeile.match(SCHWACH);
@@ -83,8 +87,9 @@ function extractBelegnummer(text) {
       }
     }
   }
-  return schwach;
+  return schwach ? { nr: schwach, sicher: false } : null; // nur über "Nr." gefunden: unsicher
 }
+function extractBelegnummer(text) { const d = belegnummerDetails(text); return d ? d.nr : null; }
 
 // Betrag + Währung: Zeile mit Stichwort wie TOTAL / Summe / Gesamt / zu zahlen
 const SUMME_STARK = /(total|summe|gesamt|zu zahlen|zahlbetrag|endbetrag|amount due|à payer|betrag)/i;
@@ -106,7 +111,7 @@ function waehrungIn(text) {
   return chf >= eur ? 'CHF' : 'EUR';
 }
 
-function extractBetrag(text) {
+function betragDetails(text) {
   const zeilen = text.split(/\r?\n/);
   const stimmen = new Map(); // Betrag -> Anzahl Zeilen, in denen er als Summe steht (Belege nennen die Summe mehrfach)
   let erster = null;
@@ -136,14 +141,18 @@ function extractBetrag(text) {
   // Gegenprobe über die Mehrwertsteuer: Brutto * Satz / (1 + Satz) muss als MwSt-Betrag auf dem Beleg stehen (verhindert z.B. 96,09 statt 36,09)
   const steuerWerte = [];
   zeilen.filter(z => /mwst|mw-st|ust|tax|netto/i.test(z)).forEach(z => steuerWerte.push(...betraegeInZeile(z)));
+  let mwstOk = false;
   const SAETZE = [0.19, 0.07, 0.081, 0.026, 0.038, 0.077];
   for (const [b] of stimmen) {
     if (steuerWerte.some(m => SAETZE.some(r => Math.abs(m - b * r / (1 + r)) < 0.021)))
-      stimmen.set(b, stimmen.get(b) + 3);
+      { stimmen.set(b, stimmen.get(b) + 3); }
   }
   const beste = [...stimmen.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  return { betrag: beste, waehrung: waehrungIn(erster.quelle) || waehrungIn(text) };
+  mwstOk = steuerWerte.some(m => SAETZE.some(r => Math.abs(m - beste * r / (1 + r)) < 0.021));
+  // sicher = MwSt-Gegenprobe stimmt, oder der Betrag wurde dreimal gleich gelesen
+  return { betrag: beste, waehrung: waehrungIn(erster.quelle) || waehrungIn(text), sicher: mwstOk || stimmen.get(beste) >= 3 };
 }
+function extractBetrag(text) { const d = betragDetails(text); return d ? { betrag: d.betrag, waehrung: d.waehrung } : null; }
 
 // Geschäftsname: meist die erste Textzeile (Logo/Name) ohne Ziffern
 const GESCHAEFT_AUS = /^(kassenbon|kassenzettel|rechnung|quittung|beleg|bon\b|datum|total|summe|tel|fax|www|uid|mwst|danke|vielen|willkommen|herzlich|kasse|filiale|ihr einkauf|customer|receipt|invoice)/i;
@@ -217,8 +226,11 @@ async function scanneBeleg(dateipfad) {
     geschaeft = geschaeft || extractGeschaeft(text2);
     text = text + '\n--- 2. Durchgang ---\n' + text2;
   }
-  return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, geschaeft, text };
+  const dd = datumDetails(text), nd = belegnummerDetails(text), bd = betragDetails(text);
+  // "sicher": mehrfach bzw. durch Gegenprobe bestätigt. Nur dann kann der Beleg als verifiziert gelten.
+  const sicher = { datum: !!(dd && dd.iso === datum && dd.sicher), belegnummer: !!(nd && nd.nr === belegnummer && nd.sicher), betrag: !!(bd && summe && bd.betrag === summe.betrag && bd.sicher) };
+  return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, geschaeft, sicher, text };
 }
 
-const ERKENNUNG_VERSION = 4; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
-module.exports = { ERKENNUNG_VERSION, scanneBeleg, extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft };
+const ERKENNUNG_VERSION = 5; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
+module.exports = { ERKENNUNG_VERSION, datumDetails, belegnummerDetails, betragDetails, scanneBeleg, extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft };

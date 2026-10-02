@@ -8,7 +8,7 @@ let kasseGeschlossen = false;
 let statsWaehrung = 'EUR';
 let currentUser = null;
 // Beleg-Scan: Foto wurde komprimiert, auf dem Server gelesen und wartet dort (scanToken)
-let scanState = { token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, geschaeft: null, file: null, laufend: false };
+let scanState = { sicher: {}, token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, geschaeft: null, file: null, laufend: false };
 // Weitere Fotos (z.B. 2. Seite eines langen Belegs)
 let zusatzNeu = [];        // neu aufgenommene (bereits komprimierte) Dateien
 let zusatzEntfernen = [];  // IDs bestehender Zusatzfotos, die beim Speichern entfernt werden
@@ -677,7 +677,7 @@ function loescheDateiVorschau() {
 
 // ===== Beleg-Scan =====
 function setzeScanZurueck() {
-  scanState = { token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, geschaeft: null, file: null, laufend: false };
+  scanState = { sicher: {}, token: null, datum: null, belegnummer: null, betrag: null, waehrung: null, geschaeft: null, file: null, laufend: false };
   var st = document.getElementById('scanStatus');
   if (st) { st.className = 'scan-status hidden'; st.textContent = ''; }
   zeigeScanDetails('');
@@ -726,16 +726,23 @@ function aktualisiereScanHinweise() {
   var nr = document.getElementById('feldBelegnummer').value.trim();
   var betragOk = scanState.betrag != null && Math.abs(parseFloat(document.getElementById('feldBetrag').value) - scanState.betrag) < 0.005 &&
     (!scanState.waehrung || document.getElementById('feldWaehrung').value === scanState.waehrung);
-  document.getElementById('hintBetrag').classList.toggle('hidden', !betragOk);
+  document.getElementById('hintBetrag').classList.toggle('hidden', !(betragOk && (scanState.sicher || {}).betrag));
   document.getElementById('hintGeschaeft').classList.toggle('hidden', !(scanState.geschaeft && document.getElementById('feldGeschaeft').value.trim() === scanState.geschaeft.trim()));
-  var datumOk = !!scanState.datum && datum === scanState.datum;
-  var nrOk = !!scanState.belegnummer && nr === scanState.belegnummer;
+  var s = scanState.sicher || {};
+  var datumGelesen = !!scanState.datum && datum === scanState.datum;
+  var nrGelesen = !!scanState.belegnummer && nr === scanState.belegnummer;
+  var datumOk = datumGelesen && !!s.datum;
+  var nrOk = nrGelesen && !!s.belegnummer;
   document.getElementById('hintDatum').classList.toggle('hidden', !datumOk);
   document.getElementById('hintBelegnummer').classList.toggle('hidden', !nrOk);
+  var unsicher = [];
+  if (datumGelesen && !s.datum) unsicher.push('Datum');
+  if (nrGelesen && !s.belegnummer) unsicher.push('Belegnummer');
+  if (scanState.betrag != null && !s.betrag) unsicher.push('Betrag');
   if (datumOk && nrOk) {
-    zeigeScanStatus('ok', 'Datum und Belegnummer aus dem Foto gelesen – der Beleg wird als verifiziert gespeichert.');
+    zeigeScanStatus('ok', 'Datum und Belegnummer aus dem Foto gelesen – der Beleg wird als verifiziert gespeichert.' + (unsicher.length ? ' Bitte trotzdem prüfen: ' + unsicher.join(', ') + '.' : ''));
   } else if (scanState.datum || scanState.belegnummer || scanState.betrag != null) {
-    zeigeScanStatus('warn', 'Nicht alles automatisch erkannt oder geändert – bitte prüfen. Der Beleg wird als manuell (nicht verifiziert) gespeichert.');
+    zeigeScanStatus('warn', (unsicher.length ? 'Unsicher gelesen: ' + unsicher.join(', ') + ' – bitte mit dem Foto vergleichen und ggf. korrigieren. ' : 'Nicht alles automatisch erkannt oder geändert – bitte prüfen. ') + 'Der Beleg wird als manuell (nicht verifiziert) gespeichert.');
   } else {
     zeigeScanStatus('warn', 'Auf dem Foto konnten Datum und Belegnummer nicht gelesen werden. Bitte von Hand eintragen – der Beleg ist dann nicht verifiziert.');
   }
@@ -794,6 +801,7 @@ function scanneBild(file) {
       scanState.betrag = data.betrag != null ? data.betrag : null;
       scanState.waehrung = data.waehrung || null;
       scanState.geschaeft = data.geschaeft || null;
+      scanState.sicher = data.sicher || {};
       if (data.geschaeft && !document.getElementById('feldGeschaeft').value.trim()) document.getElementById('feldGeschaeft').value = data.geschaeft;
       if (data.betrag != null) document.getElementById('feldBetrag').value = data.betrag.toFixed(2);
       if (data.waehrung) setWaehrung(data.waehrung);
