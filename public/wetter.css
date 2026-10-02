@@ -1,4 +1,11 @@
-.wetter-modal { max-width: 560px; }
+/* Eigenständig: funktioniert in der App und im Admin-Bereich (dort gibt es die App-Stile nicht) */
+.wetter-overlay { position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center; background: rgba(30, 40, 34, .55); padding: 16px; }
+.wetter-overlay.offen { display: flex; }
+.wetter-modal { background: #F7F4EE; color: #26332b; width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh; overflow-y: auto; border-radius: 20px; padding: 16px 16px 20px; box-shadow: 0 20px 60px rgba(0,0,0,.35); font-family: Inter, system-ui, sans-serif; }
+.wetter-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.wetter-kopf h2 { margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 22px; color: #2F4A3A; }
+.wetter-zu { width: 44px; height: 44px; border: 1.5px solid #ddd6c8; background: #fff; border-radius: 12px; font-size: 26px; line-height: 1; cursor: pointer; color: #2F4A3A; }
+@media (max-width: 600px) { .wetter-overlay { align-items: flex-end; padding: 0; } .wetter-modal { border-radius: 20px 20px 0 0; } }
 .wetter-inhalt { padding-bottom: 8px; }
 .wetter-laden, .wetter-fehler { color: var(--text-muted, #5b6b60); padding: 24px 4px; text-align: center; }
 .wetter-fehler { color: #9a3b12; }

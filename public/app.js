@@ -1189,6 +1189,14 @@ function sendeQueueEintrag(e, cb) {
 }
 
 // ===== App-Installation / Offline-Hülle =====
+// Nach einem Update übernimmt der neue Service Worker; die offene App lädt dann einmal neu, damit neue Menüpunkte sofort erscheinen
+if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+  var neuGeladen = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (neuGeladen) return; neuGeladen = true;
+    if (!scanState.laufend) window.location.reload();
+  });
+}
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js').then(function() { return navigator.serviceWorker.ready; }).then(function(reg) {

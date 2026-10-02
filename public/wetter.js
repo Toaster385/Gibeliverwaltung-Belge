@@ -28,12 +28,12 @@ var Wetter = (function() {
   function grad(n) { return n == null ? '–' : n + '°'; }
 
   function bauen() {
-    overlay = el('div', 'modal-overlay wetter-overlay');
-    var box = el('div', 'modal wetter-modal');
+    overlay = el('div', 'wetter-overlay');
+    var box = el('div', 'wetter-modal');
     box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Wetter');
-    var kopf = el('div', 'modal-header');
+    var kopf = el('div', 'wetter-kopf');
     kopf.appendChild(el('h2', null, 'Wetter'));
-    var zu = el('button', 'modal-close', '×'); zu.type = 'button'; zu.setAttribute('aria-label', 'Schliessen');
+    var zu = el('button', 'wetter-zu', '×'); zu.type = 'button'; zu.setAttribute('aria-label', 'Schliessen');
     zu.addEventListener('click', schliesse);
     kopf.appendChild(zu);
     inhalt = el('div', 'wetter-inhalt');
@@ -99,7 +99,7 @@ var Wetter = (function() {
 
   function oeffne() {
     if (!overlay) bauen();
-    overlay.classList.add('active');
+    overlay.classList.add('offen'); document.body.style.overflow = 'hidden';
     inhalt.textContent = '';
     inhalt.appendChild(el('p', 'wetter-laden', 'Wetter wird geladen …'));
     fetch('/api/wetter', { credentials: 'same-origin' })
@@ -110,7 +110,7 @@ var Wetter = (function() {
         inhalt.appendChild(el('p', 'wetter-fehler', (navigator.onLine === false ? 'Keine Internetverbindung – das Wetter kann offline nicht angezeigt werden.' : (e.message || 'Das Wetter kann gerade nicht geladen werden.'))));
       });
   }
-  function schliesse() { if (overlay) overlay.classList.remove('active'); }
+  function schliesse() { if (overlay) overlay.classList.remove('offen'); document.body.style.overflow = ''; }
 
   return { oeffne: oeffne, schliesse: schliesse, _wetterText: wetterText };
 })();
