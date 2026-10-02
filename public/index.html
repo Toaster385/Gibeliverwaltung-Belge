@@ -10,6 +10,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="login.css">
   <link rel="stylesheet" href="/excel-ansicht.css">
+  <link rel="stylesheet" href="/wetter.css">
   <link rel="stylesheet" href="/belegung-liste.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -38,6 +39,7 @@
     </div>
     <nav class="sidebar-menu">
       <button class="sidebar-item" id="sidebarBelegung"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg> Aktuelle Belegung</button>
+      <button class="sidebar-item" id="sidebarWetter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 2v1.500M2 8h1.500M3.800 3.800l1 1M12.200 3.800l-1 1"/><path d="M8 18a4 4 0 0 1 .5-7.900A5 5 0 0 1 18 11a3.500 3.500 0 0 1 0 7z"/></svg> Wetter</button>
       <button class="sidebar-item" id="sidebarGerichte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7 0 1.5 1 2.500 3 3v8"/></svg> Gerichte</button>
       <button class="sidebar-item hidden" id="sidebarExport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Export (CSV)</button>
       <button class="sidebar-item hidden" id="sidebarPapierkorb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg> Papierkorb</button>
@@ -252,6 +254,7 @@
 
   <script src="/excel-ansicht.js"></script>
   <script src="/belegung-liste.js"></script>
+  <script src="/wetter.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

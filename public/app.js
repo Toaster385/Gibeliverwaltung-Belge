@@ -894,6 +894,7 @@ function initExcelBereiche() {
   BelegungListe._nachAenderung = ladeGibeliKarte;
   document.getElementById('sidebarBelegung').addEventListener('click', function() { schliesseSidebar(); ExcelAnsicht.oeffne('belegung'); });
   document.getElementById('sidebarGerichte').addEventListener('click', function() { schliesseSidebar(); ExcelAnsicht.oeffne('gerichte'); });
+  document.getElementById('sidebarWetter').addEventListener('click', function() { schliesseSidebar(); Wetter.oeffne(); });
   ladeGibeliKarte();
 }
 function schliesseExcelModale() { ExcelAnsicht.schliesseAlle(); }
@@ -1192,7 +1193,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js').then(function() { return navigator.serviceWorker.ready; }).then(function(reg) {
       // Oberfläche für den Offline-Start zwischenspeichern (nur die App-Dateien, keine Daten)
-      if (reg.active) reg.active.postMessage({ typ: 'huelle', urls: ['/', '/app.js', '/style.css', '/login.css', '/excel-ansicht.css', '/excel-ansicht.js', '/belegung-liste.css', '/belegung-liste.js', '/vendor/xlsx.full.min.js',
+      if (reg.active) reg.active.postMessage({ typ: 'huelle', urls: ['/', '/app.js', '/style.css', '/login.css', '/excel-ansicht.css', '/excel-ansicht.js', '/belegung-liste.css', '/belegung-liste.js', '/wetter.css', '/wetter.js', '/vendor/xlsx.full.min.js',
         '/fonts/inter-latin-500-normal.woff2', '/fonts/inter-latin-700-normal.woff2', '/fonts/fraunces-latin-700-normal.woff2'] });
     }).catch(function() {});
   });

@@ -41,9 +41,26 @@ function beleg(felder, dateien = {}) {
   return f;
 }
 
+// Test-Wetterdienst im Open-Meteo-Format (die Tests brauchen kein Internet)
+let wetterAnfragen = 0, wetterAus = false;
+const wetterServer = require('http').createServer((req, res) => {
+  wetterAnfragen++;
+  if (wetterAus) { res.statusCode = 500; return res.end('kaputt'); }
+  const tage = ['2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04', '2026-12-05', '2026-12-06', '2026-12-07'];
+  const stunden = []; for (let h = 0; h < 48; h++) stunden.push(`2026-12-0${1 + Math.floor(h / 24)}T${String(h % 24).padStart(2, '0')}:00`);
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({
+    current: { time: '2026-12-01T10:15', temperature_2m: -3.4, apparent_temperature: -8.1, weather_code: 73, wind_speed_10m: 12.3, wind_gusts_10m: 30.1, is_day: 1, snow_depth: 0.42 },
+    hourly: { time: stunden, temperature_2m: stunden.map(() => -3), precipitation_probability: stunden.map(() => 60), weather_code: stunden.map(() => 71), snowfall: stunden.map(() => 0.4) },
+    daily: { time: tage, weather_code: tage.map(() => 73), temperature_2m_max: tage.map(() => 0.2), temperature_2m_min: tage.map(() => -6.7), precipitation_sum: tage.map(() => 3), snowfall_sum: tage.map(() => 4.5), sunrise: tage.map(t => t + 'T07:51'), sunset: tage.map(t => t + 'T16:43') }
+  }));
+});
+wetterServer.listen(3931);
+kinder.push({ kill: () => wetterServer.close() });
+
 (async () => {
   console.log('Start mit leerer Datenbank …');
-  let srv = await starte();
+  let srv = await starte({ WETTER_URL: 'http://localhost:3931/v1/forecast' });
   ok(/ERSTER START/.test(srv.log()) || true, 'Server startet');
   const h = await api('', 'GET', '/healthz');
   ok(h.status === 200 && h.json.status === 'ok', 'Healthcheck /healthz antwortet');
@@ -153,6 +170,14 @@ function beleg(felder, dateien = {}) {
   r = await api(admin, 'POST', '/api/gerichte', null, xl(9)); ok(r.status === 200, 'Admin darf Gerichte hochladen');
   const bad = new FormData(); bad.append('datei', new Blob(['x']), 'text.txt');
   r = await api(admin, 'POST', '/api/gerichte', null, bad); ok(r.status === 400 && r.json && r.json.error, 'Falscher Dateityp: Fehler als JSON (keine HTML-Seite)');
+
+  console.log('Wetter');
+  r = await api('', 'GET', '/api/wetter'); ok(r.status === 401, 'Wetter nur nach Anmeldung');
+  r = await api(anna, 'GET', '/api/wetter');
+  ok(r.status === 200 && r.json.ort === 'Achseten' && r.json.jetzt.temp === -3 && r.json.jetzt.schneehoeheCm === 42 && r.json.tage.length === 7 && r.json.tage[0].sonnenaufgang === '07:51', 'Wetter wird aufbereitet (Temperatur, Schneehöhe in cm, 7 Tage, Sonnenzeiten)');
+  ok(r.json.stunden.length === 24 && r.json.stunden[0].zeit === '10:00', 'Stundenvorschau beginnt bei der aktuellen Stunde (24 Stunden)');
+  const vorher = wetterAnfragen; await api(anna, 'GET', '/api/wetter'); await api(admin, 'GET', '/api/wetter');
+  ok(wetterAnfragen === vorher, 'Weitere Abrufe kommen aus dem Zwischenspeicher (keine neuen Anfragen an den Wetterdienst)');
 
   console.log('Belegungsliste (Name, Personen, Von, Bis, Zimmer)');
   r = await api(anna, 'GET', '/api/belegung/liste'); ok(r.status === 200 && r.json.eintraege.length === 0 && !r.json.kannSchreiben, 'Gast sieht die (leere) Liste, ohne Schreibrecht');

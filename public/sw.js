@@ -3,7 +3,7 @@
 // Daten (/api/...) und Belegfotos (/uploads/...) werden NIE zwischengespeichert (Datenschutz auf geteilten Geräten).
 const VERSION = 'gibeli-__BUILD__';
 // Nur öffentliche Dateien vorab laden; geschützte (app.js, style.css, …) werden nach der Anmeldung beim ersten Aufruf gespeichert
-const HUELLE = ['/login.html', '/login.css', '/excel-ansicht.css', '/excel-ansicht.js', '/belegung-liste.css', '/belegung-liste.js', '/manifest.webmanifest',
+const HUELLE = ['/login.html', '/login.css', '/excel-ansicht.css', '/excel-ansicht.js', '/belegung-liste.css', '/belegung-liste.js', '/wetter.css', '/wetter.js', '/manifest.webmanifest',
   '/fonts/inter-latin-400-normal.woff2', '/fonts/inter-latin-600-normal.woff2', '/fonts/fraunces-latin-600-normal.woff2', '/icons/icon-192.png'];
 
 self.addEventListener('install', e => {

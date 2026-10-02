@@ -1,0 +1,27 @@
+.wetter-modal { max-width: 560px; }
+.wetter-inhalt { padding-bottom: 8px; }
+.wetter-laden, .wetter-fehler { color: var(--text-muted, #5b6b60); padding: 24px 4px; text-align: center; }
+.wetter-fehler { color: #9a3b12; }
+.wetter-jetzt { background: linear-gradient(160deg, #2F4A3A, #3d5f4b); color: #F7F4EE; border-radius: 16px; padding: 18px 18px 14px; }
+.wetter-ort { font-size: 13px; opacity: .85; letter-spacing: .02em; }
+.wetter-jetzt-zeile { display: flex; align-items: center; gap: 14px; margin: 6px 0 2px; }
+.wetter-icon-gross { font-size: 54px; line-height: 1; }
+.wetter-temp { font-family: 'Fraunces', Georgia, serif; font-size: 56px; font-weight: 600; line-height: 1; }
+.wetter-text { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.wetter-fakten { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.wetter-fakt { background: rgba(255,255,255,.12); border-radius: 10px; padding: 8px 10px; }
+.wetter-fakt small { display: block; font-size: 12px; opacity: .8; }
+.wetter-fakt strong { font-size: 15px; }
+.wetter-titel { font-size: 15px; margin: 18px 0 8px; color: var(--tanne, #2F4A3A); }
+.wetter-stunden { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
+.wetter-stunde { flex: 0 0 58px; text-align: center; background: var(--surface, #fff); border: 1px solid var(--border, #ddd6c8); border-radius: 12px; padding: 8px 4px; display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.wetter-stunde small { color: var(--text-muted, #5b6b60); font-size: 12px; min-height: 15px; }
+.wetter-stunde .wetter-regen { color: #3b6f8c; font-weight: 600; }
+.wetter-icon { font-size: 22px; line-height: 1.2; }
+.wetter-tage { display: flex; flex-direction: column; gap: 6px; }
+.wetter-tag { display: grid; grid-template-columns: 74px 30px 1fr auto; gap: 8px; align-items: center; background: var(--surface, #fff); border: 1px solid var(--border, #ddd6c8); border-radius: 12px; padding: 8px 12px; }
+.wetter-tag-name { font-weight: 700; font-size: 14px; }
+.wetter-tag-text { font-size: 14px; }
+.wetter-tag-text small { display: block; color: #3b6f8c; font-weight: 600; font-size: 12px; }
+.wetter-tag-temp { font-weight: 700; font-size: 14px; white-space: nowrap; }
+.wetter-quelle { font-size: 12px; color: var(--text-muted, #5b6b60); margin-top: 14px; }

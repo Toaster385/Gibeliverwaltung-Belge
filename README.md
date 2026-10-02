@@ -15,6 +15,10 @@ Express + SQLite, läuft auf Railway oder lokal im WLAN.
 | `public/` | Oberfläche (Schriften und Excel-Bibliothek liegen lokal in `fonts/` und `vendor/`) |
 | `test/` | Automatische Tests |
 
+## Wetter
+
+Der Reiter **Wetter** (Seitenmenü der App, im Admin-Bereich unten bei den Reitern) zeigt das Wetter für Achseten (1285 m): aktuelle Werte mit Wind und Schneehöhe, die nächsten 24 Stunden und 7 Tage mit Sonnenzeiten. Die Daten kommen vom kostenlosen Dienst Open-Meteo (kein Schlüssel nötig). Der Server holt sie höchstens alle 30 Minuten und zeigt bei einem Ausfall bis zu 6 Stunden alte Daten mit Hinweis. Der Server braucht dafür Internet (Railway: ja).
+
 ## Rollen
 
 | Rolle | Darf |

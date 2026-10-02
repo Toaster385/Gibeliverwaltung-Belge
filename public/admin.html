@@ -10,6 +10,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="login.css">
   <link rel="stylesheet" href="/excel-ansicht.css">
+  <link rel="stylesheet" href="/wetter.css">
   <link rel="stylesheet" href="/belegung-liste.css">
   <style>
     /* Admin-Bereich: gleicher Stil, dezent mit Holzbraun abgesetzt */
@@ -119,6 +120,7 @@
 </head>
 <body>
   <script src="/excel-ansicht.js"></script>
+  <script src="/wetter.js"></script>
   <script src="/belegung-liste.js"></script>
     <!-- Login Section -->
     <div id="loginSection" class="login-section login-bg active">
@@ -257,6 +259,7 @@
       <div class="section-toggles">
         <button class="btn-section-toggle" id="btnToggleBelegung">Aktuelle Belegung</button>
         <button class="btn-section-toggle" id="btnToggleGerichte">Gerichte</button>
+        <button class="btn-section-toggle" id="btnToggleWetter">Wetter</button>
         <button class="btn-section-toggle" id="btnToggleBenutzer" onclick="toggleSection('benutzer')">Benutzerverwaltung</button>
         <button class="btn-section-toggle" id="btnTogglePapierkorb" onclick="toggleSection('papierkorb')">Papierkorb</button>
         <button class="btn-section-toggle" id="btnToggleProtokoll" onclick="toggleSection('protokoll')">Protokoll</button>
@@ -923,6 +926,7 @@
     });
     document.getElementById('btnToggleBelegung').addEventListener('click', function() { ExcelAnsicht.oeffne('belegung'); });
     document.getElementById('btnToggleGerichte').addEventListener('click', function() { ExcelAnsicht.oeffne('gerichte'); });
+    document.getElementById('btnToggleWetter').addEventListener('click', function() { Wetter.oeffne(); });
     function ladeGibeliKarteAdmin() {
       BelegungListe.zeigeKarte(document.getElementById('gibeliKarte'), { oeffnen: function() { ExcelAnsicht.oeffne('belegung'); } });
     }
