@@ -42,10 +42,10 @@ function beleg(felder, dateien = {}) {
 }
 
 // Test-Wetterdienst im Open-Meteo-Format (die Tests brauchen kein Internet)
-let wetterAnfragen = 0, wetterAus = false;
+let wetterAnfragen = 0, wetterAus = false, wetterNurStandard = false; const wetterAbfragen = [];
 const wetterServer = require('http').createServer((req, res) => {
-  wetterAnfragen++;
-  if (wetterAus) { res.statusCode = 500; return res.end('kaputt'); }
+  wetterAnfragen++; wetterAbfragen.push(req.url);
+  if (wetterAus || (wetterNurStandard && /models=/.test(req.url))) { res.statusCode = 500; return res.end('kaputt'); }
   const tage = ['2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04', '2026-12-05', '2026-12-06', '2026-12-07'];
   const stunden = []; for (let h = 0; h < 48; h++) stunden.push(`2026-12-0${1 + Math.floor(h / 24)}T${String(h % 24).padStart(2, '0')}:00`);
   res.setHeader('content-type', 'application/json');
@@ -60,7 +60,7 @@ kinder.push({ kill: () => wetterServer.close() });
 
 (async () => {
   console.log('Start mit leerer Datenbank …');
-  let srv = await starte({ WETTER_URL: 'http://localhost:3931/v1/forecast' });
+  let srv = await starte({ WETTER_URL: 'http://localhost:3931/v1/forecast', WETTER_MODELLE: 'meteoswiss_icon_seamless' });
   ok(/ERSTER START/.test(srv.log()) || true, 'Server startet');
   const h = await api('', 'GET', '/healthz');
   ok(h.status === 200 && h.json.status === 'ok', 'Healthcheck /healthz antwortet');
@@ -178,6 +178,18 @@ kinder.push({ kill: () => wetterServer.close() });
   ok(r.json.stunden.length === 24 && r.json.stunden[0].zeit === '10:00', 'Stundenvorschau beginnt bei der aktuellen Stunde (24 Stunden)');
   const vorher = wetterAnfragen; await api(anna, 'GET', '/api/wetter'); await api(admin, 'GET', '/api/wetter');
   ok(wetterAnfragen === vorher, 'Weitere Abrufe kommen aus dem Zwischenspeicher (keine neuen Anfragen an den Wetterdienst)');
+
+  {
+    process.env.WETTER_URL = 'http://localhost:3931/v1/forecast';
+    const W = require('../lib/wetter');
+    W._cacheLeeren(); wetterAbfragen.length = 0; wetterNurStandard = false;
+    let w = await W.holeWetter();
+    ok(/meteoswiss/.test(wetterAbfragen[0]) && /MeteoSchweiz/.test(w.quelle), 'Wetter: zuerst die Schweizer Modelle von MeteoSchweiz');
+    W._cacheLeeren(); wetterAbfragen.length = 0; wetterNurStandard = true;
+    w = await W.holeWetter();
+    ok(wetterAbfragen.length === 2 && !/models=/.test(wetterAbfragen[1]) && w.quelle === 'Open-Meteo' && w.tage.length === 7, 'Wetter: klappt das Schweizer Modell nicht, wird automatisch das Standardmodell genommen');
+    wetterNurStandard = false; W._cacheLeeren();
+  }
 
   console.log('Belegungsliste (Name, Personen, Von, Bis, Zimmer)');
   r = await api(anna, 'GET', '/api/belegung/liste'); ok(r.status === 200 && r.json.eintraege.length === 0 && !r.json.kannSchreiben, 'Gast sieht die (leere) Liste, ohne Schreibrecht');

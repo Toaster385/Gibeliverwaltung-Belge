@@ -93,7 +93,7 @@ var Wetter = (function() {
     inhalt.appendChild(liste);
 
     var stand = new Date(d.stand);
-    inhalt.appendChild(el('p', 'wetter-quelle', 'Quelle: Open-Meteo · Stand ' + stand.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) +
+    inhalt.appendChild(el('p', 'wetter-quelle', 'Quelle: ' + (d.quelle || 'Open-Meteo') + ' · Stand ' + stand.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) +
       (d.veraltet ? ' · ⚠ ältere Daten (der Wetterdienst antwortet gerade nicht)' : '')));
   }
 
