@@ -29,8 +29,10 @@ function extractDatum(text, heute = new Date()) {
     kandidaten.push({ iso: `${y}-${pad(mo)}-${pad(d)}`, bonus: /dat(um)?|date/i.test(vorher) ? 1 : 0 });
   }
   if (!kandidaten.length) return null;
-  kandidaten.sort((a, b) => b.bonus - a.bonus); // stabil: sonst erstes Datum im Text
-  return kandidaten[0].iso;
+  const zaehler = {};
+  kandidaten.forEach(k => { zaehler[k.iso] = (zaehler[k.iso] || 0) + 2 + k.bonus; });
+  // Meiste Treffer gewinnt (ein einzelner Lesefehler soll nicht entscheiden); bei Gleichstand das erste Datum im Text
+  return kandidaten.map(k => k.iso).sort((a, b) => zaehler[b] - zaehler[a])[0];
 }
 
 const STARK = /(beleg|bon\b|kassenbon|kassenzettel|rechnung|rechn\.?|quittung|transaktion|trans\b|ticket|receipt|invoice|facture|ref(erenz)?)/i;
@@ -106,6 +108,8 @@ function waehrungIn(text) {
 
 function extractBetrag(text) {
   const zeilen = text.split(/\r?\n/);
+  const stimmen = new Map(); // Betrag -> Anzahl Zeilen, in denen er als Summe steht (Belege nennen die Summe mehrfach)
+  let erster = null;
   for (let i = 0; i < zeilen.length; i++) {
     const z = zeilen[i];
     const k = z.match(SUMME_STARK);
@@ -117,20 +121,31 @@ function extractBetrag(text) {
       if (naechste && !SUMME_AUS.test(naechste)) { werte = betraegeInZeile(naechste); quelle = naechste; }
     }
     if (werte.length && werte[0] > 0) {
-      return { betrag: werte[0], waehrung: waehrungIn(z) || waehrungIn(quelle) || waehrungIn(text) };
+      stimmen.set(werte[0], (stimmen.get(werte[0]) || 0) + 1.5); // Stichwort-Zeile zählt etwas mehr
+      if (!erster) erster = { betrag: werte[0], quelle: z + ' ' + quelle };
     }
   }
-  return null;
+  // Zusätzliche Stimmen: Zeilen, die mit "EUR 36,09" bzw. "CHF 52.05" enden (Kartenzahlung, Zahlbetrag)
+  zeilen.forEach(z => {
+    if (SUMME_AUS.test(z.replace(/mastercard|visa|maestro/ig, '')) && !/mastercard|visa|maestro|karte/i.test(z)) return;
+    if (/mwst|ust|steuer|netto/i.test(z)) return;
+    const m = z.match(/(?:EUR|CHF|€)\s?(\d+[.,]\d{2})\s*$/i);
+    if (m) { const w = parseFloat(m[1].replace(',', '.')); stimmen.set(w, (stimmen.get(w) || 0) + 1); }
+  });
+  if (!erster) return null;
+  const beste = [...stimmen.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  return { betrag: beste, waehrung: waehrungIn(erster.quelle) || waehrungIn(text) };
 }
 
 // Geschäftsname: meist die erste Textzeile (Logo/Name) ohne Ziffern
 const GESCHAEFT_AUS = /^(kassenbon|kassenzettel|rechnung|quittung|beleg|bon\b|datum|total|summe|tel|fax|www|uid|mwst|danke|vielen|willkommen|herzlich|kasse|filiale|ihr einkauf|customer|receipt|invoice)/i;
+const ZAHLUNG = /(\beur\b|\bchf\b|€|mastercard|master card|visa|maestro|karte|twint|summe|total)/i;
 const ADRESSE = /(strasse|str\.|weg\b|platz|gasse|allee|postfach|bahnhof)/i;
 
 function extractGeschaeft(text) {
   const zeilen = text.split(/\r?\n/).map(z => z.replace(/[|_~=*#]+/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 7);
   for (const z of zeilen) {
-    if (z.length < 3 || z.length > 40 || /\d/.test(z) || GESCHAEFT_AUS.test(z) || ADRESSE.test(z)) continue;
+    if (z.length < 3 || z.length > 40 || /\d/.test(z) || GESCHAEFT_AUS.test(z) || ADRESSE.test(z) || ZAHLUNG.test(z)) continue;
     const buchstaben = (z.match(/\p{L}/gu) || []).length;
     if (buchstaben < 3 || buchstaben / z.length < 0.75) continue;
     // GROSSBUCHSTABEN -> Normale Schreibweise ("LANDI FRUTIGEN" -> "Landi Frutigen")
