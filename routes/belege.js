@@ -7,7 +7,7 @@ const { db } = require('../lib/db');
 const { dirs } = require('../lib/config');
 const { hatRolle, istPrivilegiert, requireLogin, requireVerwaltung, requireAdmin } = require('../lib/auth');
 const { protokolliere, diff } = require('../lib/protokoll');
-const { scanneBeleg } = require('../scan');
+const { scanneBeleg, ERKENNUNG_VERSION } = require('../scan');
 
 const { uploadsDir, scanTmpDir } = dirs;
 const PAPIERKORB_TAGE = 30;
@@ -172,7 +172,7 @@ module.exports = function (app) {
       ablauf: Date.now() + SCAN_TTL
     });
     res.json({ scanToken: token, datum: erkannt.datum, belegnummer: erkannt.belegnummer, betrag: erkannt.betrag,
-      waehrung: erkannt.waehrung, geschaeft: erkannt.geschaeft, lesefehler, text: text.slice(0, 1500) });
+      waehrung: erkannt.waehrung, geschaeft: erkannt.geschaeft, lesefehler, text: text.slice(0, 1500), version: ERKENNUNG_VERSION });
   });
 
   // ----- Liste / Einzelbeleg -----

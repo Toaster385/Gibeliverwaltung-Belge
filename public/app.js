@@ -805,7 +805,7 @@ function scanneBild(file) {
       } else {
         aktualisiereScanHinweise();
       }
-      if (!data.datum || !data.belegnummer || data.betrag == null) zeigeScanDetails(data.text || '(kein Text erkannt)');
+      zeigeScanDetails('Erkennung v' + (data.version || '?') + ' | Beleg-Nr: ' + (data.belegnummer || '–') + ' | Datum: ' + (data.datum || '–') + ' | Betrag: ' + (data.betrag != null ? data.betrag : '–') + '\n\n' + (data.text || '(kein Text erkannt)'));
     } catch (e) { manuell('Antwort nicht lesbar: ' + e.message); }
   };
   xhr.ontimeout = function() { manuell('Zeitüberschreitung (120 s)'); };

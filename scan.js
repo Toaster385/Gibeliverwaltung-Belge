@@ -212,4 +212,5 @@ async function scanneBeleg(dateipfad) {
   return { datum, belegnummer, betrag: summe ? summe.betrag : null, waehrung: summe ? summe.waehrung : null, geschaeft, text };
 }
 
-module.exports = { scanneBeleg, extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft };
+const ERKENNUNG_VERSION = 3; // hochzählen, wenn die Auswertung geändert wird (wird in der App angezeigt)
+module.exports = { ERKENNUNG_VERSION, scanneBeleg, extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft };
