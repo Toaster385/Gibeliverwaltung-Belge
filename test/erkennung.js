@@ -1,7 +1,7 @@
 // Testfälle für die Texterkennung (Datum, Belegnummer, Betrag, Währung, Geschäft) mit typischen Kassenzettel-Texten.
 // Neue echte Beispiele (nur den erkannten Text, siehe Admin → Protokoll → "Foto nicht erkannt") hier ergänzen.
 const { extractDatum, extractBelegnummer, extractBetrag, extractGeschaeft } = require('../scan');
-const heute = new Date('2026-10-01');
+const heute = new Date("2026-10-01");
 let fehler = 0;
 
 const faelle = [
@@ -26,6 +26,9 @@ const faelle = [
   { name: 'Betrag in der nächsten Zeile',
     text: 'Volg Achseten\nBon 8812\n21.09.2026\nTotal\n34.60 CHF',
     erwartet: { datum: '2026-09-21', nr: '812', betrag: 34.6, waehrung: 'CHF', geschaeft: 'Volg Achseten' } },
+  { name: 'Tankstelle (Bon in Tabellenzeile unten, Steuernummer ist keine Belegnummer)',
+    text: 'ANKSTELLE\nuornummer: 040/8093/808\nSumme EUR 36,09\nMasterCard EUR 36,09\nTA-Nr_ 406080 BNr 8758\nDatum 17.03.26 22:27 Uhr\nTränsaktionsnummer: 1822124\nDatum Zeit_ Bon_ POS _KNo Schicht\n17.093,26 22:27 63774 01 0005 254\nAut Wiedersehen',
+    erwartet: { datum: '2026-03-17', nr: '774', betrag: 36.09, waehrung: 'EUR' } },
   { name: 'Zukünftiges / unmögliches Datum wird ignoriert',
     text: 'Laden\nGültig bis 31.12.2030\n31.02.2026',
     erwartet: { datum: null } },

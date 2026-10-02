@@ -43,12 +43,30 @@ function ziffernDerZeile(teil) {
   return m[1].replace(/\D/g, '');
 }
 
+// Tabellen-Fuss vieler Kassen: Kopfzeile "Datum Zeit Bon POS KNo Schicht", darunter die Werte "17.03.26 22:27 63774 01 0005 254"
+function belegnummerAusTabelle(zeilen) {
+  for (let i = 0; i < zeilen.length - 1; i++) {
+    const kopf = zeilen[i].split(/[\s_]+/).filter(Boolean);
+    const idx = kopf.findIndex(t => /^(bon|beleg|belegnr|bonnr)$/i.test(t));
+    if (idx < 0 || kopf.length < 3) continue;
+    const naechste = zeilen.slice(i + 1).find(x => x.trim());
+    if (!naechste) continue;
+    const werte = naechste.split(/[\s_]+/).filter(Boolean);
+    let wert = werte.length === kopf.length ? werte[idx] : null;
+    if (!wert || !/^\d{3,}$/.test(wert)) wert = werte.find(t => /^\d{3,}$/.test(t) && !/^\d{1,2}[.,]\d/.test(t));
+    if (wert && /^\d{3,}$/.test(wert)) return wert.slice(-3);
+  }
+  return null;
+}
+
 function extractBelegnummer(text) {
   text = normalisiereZiffern(text);
   const zeilen = text.split(/\r?\n/);
+  const tabelle = belegnummerAusTabelle(zeilen);
+  if (tabelle) return tabelle;
   let schwach = null;
   for (const zeile of zeilen) {
-    if (AUSSCHLUSS.test(zeile)) continue;
+    if (AUSSCHLUSS.test(zeile) || /\d+\/\d+\/\d+/.test(zeile)) continue;
     const s = zeile.match(STARK);
     if (s) {
       const rest = zeile.slice(s.index + s[0].length);
